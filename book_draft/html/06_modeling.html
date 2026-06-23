@@ -1,0 +1,1399 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <link rel="stylesheet" href="style/style.css">
+  <link rel="stylesheet" href="style/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+  <script>
+  MathJax.Hub.Config({
+      TeX: {
+        Macros: {
+          mat: ["{\\begin{bmatrix} #1 \\end{bmatrix}}", 1],
+          bb: ["{\\mathbf{ #1 }}", 1],
+        }
+      }
+    });
+  </script>
+</head>
+<body>
+<header>
+  <p><a href="00_title.html">The Little Book of Computer Graphics</a> <span class="version">v 0.0.1</span></p>
+</header>
+<article>
+<h1>6. Smooth Curves And Surfaces</h1>
+<p>The shape representation we have considered so far approximates surfaces with
+triangles and curves with line segments. This representation is general and
+scalable and works well for rendering applications. For other applications
+though, such as shape editing, continuos shape representations are more
+effective. In this chapter, we discuss representations for smooth curves and
+surfaces that complement lines and triangles.</p>
+<h2>6.1. Splines</h2>
+<p>When discussing shapes, we introduced parametric representation and gave a few
+examples of shapes for which an analytic representation is possible, for example
+circles in two dimensions and spheres in three dimensions. In general though,
+analytics representations are not possible for the vast majority of real-world
+shapes. We then discuss the use of lines and triangles to approximate shapes
+using piece-wise linear representations. These representations work quite well
+for rendering, but are not ideal when designers need to edit shapes.</p>
+<p>Consider a designer that wants to draw the boundary of a curved shape, like an
+icon or a character glyph in a font. For the shape to appear smooth, we need to
+approximate it with many line segments. But while editing, the designer would
+have to move all these segments together to obtain the desired shape. Needless
+to say, this is not practical. A better alternative is to define curves that
+smoothly approximate a small number of <em>control points</em>, as shown in
+<a href="#design_designs">Figure 6.1</a>.</p>
+<p><img alt="design_designs" id="design_designs" src="diagrams/06_modeling/design_designs.png"><br>
+Figure 6.1. Smooth curves defined by approximating a set of control points. Here
+we show the curve in black, the control points in orange and the control polygon
+in blue.</p>
+<p>Different definition of the smooth curve are used in different applications. The
+choice depends on the desired property that the resulting curve should have. For
+design applications, we want curves that are continuos in both their position
+and tangents, that are intuitive to manipulate, and that are cheap to compute
+with. <em>Splines</em> are a family of curves that fulfills all these requirements.</p>
+<p>A spline is a curve whose points can be written as weighted averages of a set of
+control points. The weights are functions, called basis functions, parametrized
+by a value that ranges from zero to one. For splines the basis functions are
+polynomials. Depending on the choice of polynomial degrees and coefficients, we
+obtain different types of splines.</p>
+<h2>6.2. Bézier Splines</h2>
+<p>The most commonly used splines are the ones introduced by Pierre Bézier. Bézier
+splines are defined as the weighted sum of <span class="arithmatex">\(n+1\)</span> control points <span class="arithmatex">\(\mathbf{p}_i\)</span>
+scaled by the basis functions <span class="arithmatex">\(b_i^n(u)\)</span>. The basis functions are polynomials of
+degree <span class="arithmatex">\(n\)</span> defined to be zero outside the interval <span class="arithmatex">\([0,1]\)</span> and to sum to one in
+the interval. In this chapter, we use the notation
+<span class="arithmatex">\(\mathbf{p}^n(u, \{\mathbf{p}_0,...,\mathbf{p}_n\})\)</span> to indicate a Bézier spline
+of <span class="arithmatex">\(n\)</span> degree with control points <span class="arithmatex">\(\{\mathbf{p}_0,...,\mathbf{p}_n\}\)</span>, and write
+its definition as</p>
+<div class="arithmatex">\[
+\mathbf{p}^n(u, \{\mathbf{p}_0,...,\mathbf{p}_n\}) =
+\sum\nolimits_i^n b_i^n(u) \mathbf{p}_i \qquad u \in [0,1]
+\]</div>
+<p>For Bézier splines, the basis functions <span class="arithmatex">\(b_i^n(u)\)</span> are the Bernstein polynomials
+defined as</p>
+<div class="arithmatex">\[
+b_i^n(u) = \binom{n}{i} u^i (1-u)^{n-i} \qquad i \in [0,n] \qquad \binom{n}{i} = \frac{n!}{i!(n-i)!}
+\]</div>
+<p>To gain some intuition, we plot the basis functions for the first three degrees
+in <a href="#bezier_basis">Figure 6.2</a>, and write them explicitly as</p>
+<div class="arithmatex">\[
+\begin{aligned}
+&amp;b^1_0(u) = (1-u)    \ \ \qquad b^1_1(u) = u  \\
+&amp;b^2_0(u) = (1-u)^2  \qquad b^2_1(u) = 2 (1-u) u \ \ \qquad b^2_2(u) = u^2 \\
+&amp;b^3_0(u) = (1-u)^3  \qquad b^3_1(u) = 3 (1-u)^2 u \qquad
+  b^3_2(u) = 3 (1-u) u^2 \qquad b^3_3(u) = u^3 \\
+\end{aligned}
+\]</div>
+<p><img alt="bezier_basis" id="bezier_basis" src="diagrams/06_modeling/bezier_basis.png"><br>
+Figure 6.2. Basis functions for linear, quadratic and cubic Bézier splines.</p>
+<p>We obtain curves with different properties by changing the number of control
+points, or equivalently the degree of the polynomial. The simplest Bézier
+spline, corresponding to a degree one polynomial, is a line segment, that is the
+weighted average of its two control points. In this case, the basis functions
+are just linear interpolation. To achieve better control, we normally use curves
+of higher degree. In the case of three and four control points, the basis
+functions are quadratic and cubic polynomials respectively. In all these cases,
+Bézier splines pass through the first and last control point, while the other
+points controls the middle part of the curve. Examples of linear, quadratic and
+cubic Bézier splines are shown in <a href="#bezier_splines">Figure 6.3</a>.</p>
+<p><img alt="bezier_splines" id="bezier_splines" src="diagrams/06_modeling/bezier_splines.png"><br>
+Figure 6.3. Points on linear, quadratic and cubic Bézier splines are computed as
+weighted averages of their control points. All curves pass through their
+end-points, while the other points control the middle of the curve in the
+quadratic and cubic case.</p>
+<p>Both quadratic and cubic curves draw straight lines if all their control points
+are aligned. Quadratic curves never self-intersect while cubic curves may
+self-intersect and may show cusps. We will not derive this property here but
+show more examples of cubic splines in <a href="#bezier_cusps">Figure 6.4</a>.</p>
+<p><img alt="bezier_cusps" id="bezier_cusps" src="diagrams/06_modeling/bezier_cusps.png"><br>
+Figure 6.4. Example of cubic Bézier splines. Cubic Béziers splines may have
+self-intersections and cusps.</p>
+<p>Higher-order Bézier splines are also possible, but are rarely used in practice.
+<a href="#bezier_higherorder">Figure 6.5</a> shows examples of Bézier splines with five to
+seven control points. The main reason for not using higher-order Bézier splines
+is that they are harder to control. For example, the curve in
+<a href="#bezier_higherorder">Figure 6.5</a> is controlled by six points, but moving one
+point changes the whole curve. This is not ideal for design applications.</p>
+<p><img alt="bezier_higherorder" id="bezier_higherorder" src="diagrams/06_modeling/bezier_higherorder.png"><br>
+Figure 6.5. Bézier splines with five to seven control points, corresponding to
+polynomials of degree four to six.</p>
+<p>Many geometric properties of Bézier splines comes from the algebraic properties
+of their basis functions. The first useful property is that Bernstein
+polynomials are positive in the interval <span class="arithmatex">\([0,1]\)</span> and sum to one in that
+interval. We can summarize these properties by writing</p>
+<div class="arithmatex">\[
+b_i^n(u) \geq 0 \qquad \sum\nolimits_i^n b_i^n(u) = 1 \qquad u \in [0,1]
+\]</div>
+<p>From the previous properties, we can easily show that Bézier splines are
+<em>affine-invariant</em>, meaning that, for affine transformations, the curve obtained
+by transforming points on the curve is the same as the curve obtained by
+transforming the control points. This comes from the fact that Bernstein
+polynomials sum to one. If we write an affine transformation as
+<span class="arithmatex">\(\mathbf{F} = [\mathbf{M}, \mathbf{t}]\)</span>, we can show the affine-invariant
+property by substitution as</p>
+<div class="arithmatex">\[
+\begin{aligned}
+\mathbf{F} \cdot \mathbf{p}^n(u, \{ \mathbf{p}_0, ..., \mathbf{p}_n \}) &amp;=
+\mathbf{F} \cdot \sum\nolimits_i^n b_i^n(u) \mathbf{p}_i =
+\mathbf{M} \sum\nolimits_i^n b_i^n(u) \mathbf{p}_i + \mathbf{t} = \\
+&amp;= \mathbf{M} \sum\nolimits_i^n b_i^n(u) \mathbf{p}_i + \sum\nolimits_i^n b_i^n(t) \mathbf{t} =
+\sum\nolimits_i b_i^n(u) (\mathbf{M} \mathbf{p}_i + \mathbf{t}) = \\
+&amp;= \mathbf{p}^n(u, \{ \mathbf{F} \cdot \mathbf{p}_0, ..., \mathbf{F} \cdot \mathbf{p}_n \})
+\end{aligned}
+\]</div>
+<p><img alt="bezier_transforms" id="bezier_transforms" src="diagrams/06_modeling/bezier_transforms.png"><br>
+Figure 6.6. Transformed Bézier splines can be obtained by transforming their
+control points.</p>
+<p>Since the basis functions are always positive and sum to one, the curve point is
+a convex sum of the control points. This means that Bézier splines lie within
+the convex hull of the control points, as shown in <a href="#bezier_hulls">Figure 6.7</a>.
+The convex hull is the smallest convex polygon that contains a set of points.
+This property also implies that the bounding box of a Bézier spline is contained
+in the bounding box of its control points.</p>
+<p><img alt="bezier_hulls" id="bezier_hulls" src="diagrams/06_modeling/bezier_hulls.png"><br>
+Figure 6.7. Bézier splines are contained in the convex hulls of their control
+points.</p>
+<p>The basis functions are also symmetric with respect to the order of control
+points, meaning that the curve obtained by inverting the order of control points
+is the same as the curve obtained by evaluating the spline at one minus the
+parameter. In term of basis functions, we can state that
+<span class="arithmatex">\(b_i^n(u) = b_{n-i}^n(1-u)\)</span>. We can show this by substituting the index <span class="arithmatex">\(n-i\)</span> in
+the basis function <span class="arithmatex">\(b_i^n\)</span> as</p>
+<div class="arithmatex">\[
+\begin{aligned}
+b_{n-i}^n(u) &amp;=
+\frac{n!}{(n-i)!(n-(n-i))!} u^{n-i} (1-u)^{n-(n-i)} = \\
+&amp;=\frac{n!}{(n-i)!i!} u^n (1-u)^i = b_i^n(1-u)
+\end{aligned}
+\]</div>
+<p>From this property, we can easily show that Bézier splines are symmetric with
+respect to the order of control points. We proceed again by substitution as</p>
+<div class="arithmatex">\[
+\begin{aligned}
+\mathbf{p}^n(u, \{ \mathbf{p}_0, ..., \mathbf{p}_n \}) &amp;=
+\sum\nolimits_i^n b_i^n(u) \mathbf{p}_i =
+\sum\nolimits_i^n b_{n-i}^n(1-u) \mathbf{p}_i = \\
+&amp;= \sum\nolimits_i^n b_i^n(1-u) \mathbf{p}_{n-i} =
+\mathbf{p}^n(1-u, \{ \mathbf{p}_n, ..., \mathbf{p}_0 \})
+\end{aligned}
+\]</div>
+<p>Tangents of Bézier splines can be computed by deriving the curve expression with
+respect to its parameter. For Bézier splines of <span class="arithmatex">\(n\)</span> degree, the tangent is a
+polynomial of degree <span class="arithmatex">\(n-1\)</span>. We can derive the tangent by substituting the
+Bernstein polynomials with their derivatives. Since these are simple
+substitutions, we omit them here and just write the final expression for the
+tangent as</p>
+<div class="arithmatex">\[
+\begin{aligned}
+\mathbf{t}^n(u, \{ \mathbf{p}_0, ..., \mathbf{p}_n \}) &amp;=
+  \frac{d\mathbf{p}^n(u, \{ \mathbf{p}_0, ..., \mathbf{p}_n \})}{du} =
+    n \sum\nolimits_i^{n-1} b_i^{n-1}(u) (\mathbf{p}_{i+1} - \mathbf{p}_i)
+\end{aligned}
+\]</div>
+<p>Note that this means that the tangent at the end points of a Bézier spline are
+parallel to the line connecting the end points to the adjacent points. This is
+shown in <a href="#bezier_tangents">Figure 6.8</a>, and can be written as</p>
+<div class="arithmatex">\[
+\mathbf{t}^n(0, \{ \mathbf{p}_0, ..., \mathbf{p}_n \}) = n (\mathbf{p}_2 - \mathbf{p}_1) \qquad
+\mathbf{t}^n(1, \{ \mathbf{p}_0, ..., \mathbf{p}_n \}) = n (\mathbf{p}_n - \mathbf{p}_{n-1}) \\
+\]</div>
+<p><img alt="bezier_tangents" id="bezier_tangents" src="diagrams/06_modeling/bezier_tangents.png"><br>
+Figure 6.8. The tangents at the end points of Bézier splines.</p>
+<p>Let us now think about why these properties help in our editing applications.
+The fact that Bézier splines are controlled only by points means that a single
+user interface, used to manipulated points, is sufficient to model the whole
+curve. Tangents are controlled directly by the middle points, and do not require
+any special treatment in the user interface. The convex hull property means
+curves are easy to control, since editing control points have predictable
+behavior. The transform property means curves can be transformed without the
+need for a specialized user interface since we just manipulate their control
+points.</p>
+<h2>6.3. Joining Bézier Splines</h2>
+<p>As we add more control points, Bézier splines becomes less effective. The cost
+of evaluating the curves grows with the curve order. More importantly, the curve
+becomes harder to control since moving one point modifies the whole curve. The
+most practical alternative is to assemble longer curves by joining together
+multiple low-degree curves.</p>
+<p>A convenient way to write this is to consider the curve
+<span class="arithmatex">\(\mathbf{p}^n(u, \{ \mathbf{p}_{k,i} \})\)</span> defined for <span class="arithmatex">\(u \in [0,m]\)</span>, where <span class="arithmatex">\(m\)</span>
+is the number of segments. For each interval <span class="arithmatex">\(u \in [k, k+1]\)</span>, with
+<span class="arithmatex">\(k \in [0, m]\)</span>, the curve correspond to a low-degree Bézier spline
+<span class="arithmatex">\(\mathbf{p}_k^n(u-k, \mathbf{p}_{k,0}, ..., \mathbf{p}_{k,n})\)</span> defined by a
+different set of control points <span class="arithmatex">\(\{ \mathbf{p}_{0,k}, ..., \mathbf{p}_{n,k} \}\)</span>.
+We can write the curve more precisely as</p>
+<div class="arithmatex">\[
+\mathbf{p}^n(u, \{ \mathbf{p}_{k,i} \}) =
+\mathbf{p}_k^n(u - k, \{ \mathbf{p}_{k,0}, ..., \mathbf{p}_{k,n} \}) \qquad
+\text{for } u \in [k, k+1]
+\]</div>
+<p>We impose constraints on the control points to ensure that the curve has
+continuos positions and tangents at the joints. In general, we say that a curve
+is <span class="arithmatex">\(\mathcal{C}^k\)</span> continuos if its derivatives up to order <span class="arithmatex">\(k\)</span> are continuos.
+For Bézier splines, this means that the curve is <span class="arithmatex">\(\mathcal{C}^0\)</span> continuos if
+the end points of consecutive segments are equal. The curve is <span class="arithmatex">\(\mathcal{C}^1\)</span>
+continuos if the tangents at the end points of consecutive segments are equal.
+Using the expressions for the tangents at the end points that we derived before,
+we can write the position and tangent constraints, shown in
+<a href="#bezier_joinsharp">Figure 6.9</a> and <a href="#bezier_joinsmooth">Figure 6.10</a> , as</p>
+<div class="arithmatex">\[
+\begin{aligned}
+&amp; \mathbf{p}_{n,k} = \mathbf{p}_{0,k+1} &amp; \quad \text{position constraint for } \mathcal{C}^0 \text{ continuity} \\
+&amp; \mathbf{p}_{n,k} - \mathbf{p}_{n-1,k} = \mathbf{p}_{1,k+1} - \mathbf{p}_{0,k+1} &amp; \quad \text{tangent constraint for } \mathcal{C}^1 \text{ continuity} \\
+\end{aligned}
+\]</div>
+<p><img alt="bezier_joinsharp" id="bezier_joinsharp" src="diagrams/06_modeling/bezier_joinsharp.png"><br>
+Figure 6.9. We model longer curves by joining spline segments.</p>
+<p><img alt="bezier_joinsmooth" id="bezier_joinsmooth" src="diagrams/06_modeling/bezier_joinsmooth.png"><br>
+Figure 6.10. By aligning curve tangents, we obtain smooth spline curves.</p>
+<p>In design applications, the main property that joined spline exhibit is <em>local
+control</em>, meaning that moving one control point changes a curve only locally.
+This is obviously true for joined splines since each segment is independent to
+the others, as shown in <a href="#bezier_joinedit">Figure 6.11</a>.</p>
+<p><img alt="bezier_joinedit" id="bezier_joinedit" src="diagrams/06_modeling/bezier_joinedit.png"><br>
+Figure 6.11. Joined Bézier spline have local control since we edit at most two
+segments at a time.</p>
+<h2>6.4. Splitting Bézier Splines</h2>
+<p>It is often necessary to convert splines into line segments, for example for
+rendering. The simplest method is to evaluated the spline at fixed intervals in
+the parameter domain and connect consecutive points. This is called <em>uniform
+subdivision</em>. For a resolution of <span class="arithmatex">\(s\)</span> segments, we can write the <span class="arithmatex">\(s+1\)</span> line
+points <span class="arithmatex">\(\mathbf{p}[i]\)</span>, shown in <a href="#bezier_tesselation">Figure 6.12</a>, as</p>
+<div class="arithmatex">\[
+\mathbf{p}[i] = \mathbf{p}(i/s) \qquad i \in [0,s]
+\]</div>
+<p><img alt="bezier_tesselation" id="bezier_tesselation" src="diagrams/06_modeling/bezier_tesselation.png"><br>
+Figure 6.12. A simple way to convert a Bézier spline into line segments is to
+evaluate the spline at equally-sized intervals in the spline parameter.</p>
+<p>Uniform subdivision is fast to execute and works relatively well, but generates
+a number of segments that does not depend on how curved the spline is. A better
+alternative is to split the spline recursively and stop recursion when a
+stopping criterion is met, for example when the control points are aligned
+enough that the control polygon is a good approximation of the curve. This is a
+form of <em>adaptive subdivision</em>. The main advantage of adaptive subdivision is
+that it generates a number of segments that depends on the curvature of the
+curve. The main disadvantage is that it is more expensive to evaluate.</p>
+<p>An elegant way to adaptively subdivide a spline can be derived from the
+recursive definition of Bézier splines. It can be shown by substitution that a
+Bézier spline of degree <span class="arithmatex">\(n\)</span> can be written as a linear combination of two Bézier
+splines of degree <span class="arithmatex">\(n-1\)</span>, defined by the first <span class="arithmatex">\(n\)</span> and last <span class="arithmatex">\(n\)</span> control points
+respectively. We complete the recursive definition with the base case of a
+Bézier spline of degree zero that corresponds to a single control point. We can
+write the recursive definition as</p>
+<div class="arithmatex">\[
+\begin{gathered}
+\mathbf{p}^0(u, \{ \mathbf{p}_0 \}) = \mathbf{p}_0 \\
+\mathbf{p}^n(u, \{ \mathbf{p}_0, ..., \mathbf{p}_n \}) =
+(1-u) \mathbf{p}^{n-1}(u, \{ \mathbf{p}_0, ..., \mathbf{p}_{n-1} \}) +
+u \mathbf{p}^{n-1}(u, \{ \mathbf{p}_1, ..., \mathbf{p}_n \}) \\
+\end{gathered}
+\]</div>
+<p>From this relationship, we can derive a recursive method to evaluate a Bézier
+spline at a given parameter value. Let us consider a Bézier spline of degree
+<span class="arithmatex">\(n\)</span>, with control points <span class="arithmatex">\(\{ \mathbf{p}_0, ..., \mathbf{p}_n \}\)</span>. We indicate as
+<span class="arithmatex">\(\mathbf{p}_i^m(u)\)</span> a point on a Bézier spline of degree <span class="arithmatex">\(m\)</span> with control points
+starting at the <span class="arithmatex">\(i\)</span>-th control point, written as
+<span class="arithmatex">\(\mathbf{p}_i^m(u) = \mathbf{p}^m(u, \{ \mathbf{p}_i, ..., \mathbf{p}_{i+m} \})\)</span>.
+The recursive definition states that we can compute the point
+<span class="arithmatex">\(\mathbf{p}_i^m(u)\)</span> by linear interpolation of the points
+<span class="arithmatex">\(\mathbf{p}_i^{m-1}(u)\)</span> and <span class="arithmatex">\(\mathbf{p}_{i+1}^{m-1}(u)\)</span> on two consecutive
+lower-degree splines. More precisely, we can write</p>
+<div class="arithmatex">\[
+\begin{gathered}
+\mathbf{p}_i^0(u) = \mathbf{p}_i \\
+\mathbf{p}_i^m(u) = (1-u)\mathbf{p}_i^{m-1}(u) + u \mathbf{p}_{i+1}^{m-1}(u) \\
+\mathbf{p}_i^m(u) = \mathbf{p}^m(u, \{ \mathbf{p}_i, ..., \mathbf{p}_{i+m} \})
+\qquad m \in [1, n] \qquad i \in [0, n-m] \\
+\end{gathered}
+\]</div>
+<p>From the previous definition, we can derive a recursive method to evaluate
+points on a Bézier spline. We start by considering the single control points
+<span class="arithmatex">\(\mathbf{p}_i\)</span> as points on <span class="arithmatex">\(n\)</span> zero-degree splines
+<span class="arithmatex">\(\mathbf{p}_i^0=\mathbf{p}_i\)</span>. We then compute the points
+<span class="arithmatex">\(\mathbf{p}_i^1(u) = (1-u)\mathbf{p}_i^0 + u\mathbf{p}_{i+1}^0\)</span> that corresponds
+to points on the segments formed by consecutive pairs of points
+<span class="arithmatex">\((\mathbf{p}_i^0, \mathbf{p}_{i+1}^0)\)</span>. From this new sets of points, we compute
+the points <span class="arithmatex">\(\mathbf{p}_i^2(u)\)</span> that correspond to points on consecutive segments
+formed by pairs of points <span class="arithmatex">\((\mathbf{p}_i^1, \mathbf{p}_{i+1}^1)\)</span>. We continue
+this process until we compute the desired point
+<span class="arithmatex">\(\mathbf{p}^n(u) = \mathbf{p}_0^n(u)\)</span>. This recursive procedure, called the <em>de
+Casteljau algorithm</em>, is illustrated in <a href="#bezier_decasteljaustep">Figure 6.13</a>.</p>
+<p><img alt="bezier_decasteljaustep" id="bezier_decasteljaustep" src="diagrams/06_modeling/bezier_decasteljaustep.png"><br>
+Figure 6.13. Steps for the de Casteljau algorithm applied to a cubic spline.</p>
+<p>The de Casteljau algorithm has the advantage that it can be used to evaluate
+spline points with higher numerical precision compared to the direct evaluation
+of the Bernstein polynomials. This matter mostly for high degree splines, while
+it is not as significant for lower degree one, such as the ones mostly used in
+graphics.</p>
+<p>The most common use of the de Casteljau algorithm is instead related to spline
+splitting. In particular, it can be shown, that an <span class="arithmatex">\(n\)</span>-degree Bézier spline
+<span class="arithmatex">\(\mathbf{p}^n(u, \{ \mathbf{p}_0, ..., \mathbf{p}_n \})\)</span> can be split at the
+position <span class="arithmatex">\(\mathbf{p}^n(u_s)\)</span> into two consecutive splines, of the same degree,
+with control points <span class="arithmatex">\(\{ \mathbf{p}_0^i(u) \}\)</span> and <span class="arithmatex">\(\{ \mathbf{p}_i^{n-i}(u) \}\)</span>
+computed by the de Casteljau algorithm. This is illustrated in
+<a href="#bezier_decasteljausplit">Figure 6.14</a>, and can be written as</p>
+<div class="arithmatex">\[
+\begin{aligned}
+\mathbf{p}^n(u, \{ \mathbf{p}_0, ..., \mathbf{p}_n \}) = \begin{cases}
+\mathbf{p}^n(u / u_s, \{ \mathbf{p}_0^0(u), \mathbf{p}_0^1(u), ..., \mathbf{p}_0^n(u) \}) &amp; u \in [0,u_s] \\
+\mathbf{p}^n(u / (1-u_s), \{ \mathbf{p}_0^n(u), \mathbf{p}_1^{n-1}(u), ..., \mathbf{p}_n^0(u) \}) &amp; u \in [u_s,1]
+\end{cases}
+\end{aligned}
+\]</div>
+<p><img alt="bezier_decasteljausplit" id="bezier_decasteljausplit" src="diagrams/06_modeling/bezier_decasteljausplit.png"><br>
+Figure 6.14. De Casteljau splits for quadratic and cubic splines.</p>
+<p>Splitting splines is helpful in design applications where a user might want to
+refine a spline to gain better control by adding control points, without
+changing the curve shape. It is also useful as an alternative to uniform
+tesselatation to generate line segments for rendering. This is shown in
+<a href="#bezier_subdivision">Figure 6.15</a>. The main advantage of subdivision over
+uniform tesselation is that the number of segments may depend on the curvature
+of the curve. For example, in <em>adaptive subdivision</em> a spline is split
+recursively until the control points are either close enough or sufficiently
+aligned. This results in a set of smaller splines that can be converted to line
+segment by simply taking the sides of the control polygon. For splines that are
+nearly flat, this generates a set of segments that is significantly smaller than
+uniform subdivision.</p>
+<p><img alt="bezier_subdivision" id="bezier_subdivision" src="diagrams/06_modeling/bezier_subdivision.png"><br>
+Figure 6.15. Subdivision of Bezier splines.</p>
+<h2>6.5. Bézier Splines in Design Applications</h2>
+<p>Bézier splines are the fundamental primitive of two-dimensional drawing
+applications. They are the base of both design software as well as rendering in
+user interfaces and digital documents. Such a wide applicability comes from
+their many properties. Bézier splines are simple to implement, efficient to
+compute with, and intuitive for designers to handle. Just like raster images,
+they are literally the base of a whole industry. For example, Bézier splines are
+used to define the outline of digital fonts, and are the curve implementation
+used in vector drawing programs and in the SVG and PDF formats, as shown in
+<a href="#design_letters">Figure 6.16</a> and <a href="#design_icons">Figure 6.17</a>.</p>
+<p>From a designer perspective, the main difference between quadratic and cubic
+curves is control. Quadratic curves are simpler, but can reproduce a smaller
+range of curves. Cubic curves give more control, but can produce possibly
+unwanted configurations, like cusps and intersections. Cubic splines are the
+most used in practice since thy are the base of most vector drawing programs.
+Quadratic splines are used extensively to draw fonts, albeit also cubic splines
+can be used there.</p>
+<p><img alt="design_letters" id="design_letters" src="diagrams/06_modeling/design_letters.png"><br>
+Figure 6.16. Example of the use of quadratic Bézier splines to draw fonts.
+Glyphs from the fonts Fira Code, Crimson Text and Great Vibes from <a href="https://fonts.google.com/">Google
+Fonts</a>.</p>
+<p><img alt="design_icons" id="design_icons" src="diagrams/06_modeling/design_icons.png"><br>
+Figure 6.17. Example of the use of Bézier splines to draw icons. Icons from the
+font Noto Symbol from <a href="https://fonts.google.com/">Google Fonts</a>.</p>
+<h2>6.6. Catmull-Rom Splines</h2>
+<p>Bézier splines belong to the class of <em>approximating splines</em>, meaning that they
+pass through all their control points. This is not always desirable, for example
+when we want to smoothly interpolate a set of points, such as drawing hair or
+fur guided by a set of control points. For these problems, we often prefer to
+use <em>interpolating splines</em>, that pass through a set of points. If we chose to
+use low-degree polynomial splines for interpolation, we can derive a new class
+of splines that can be written in terms of Bézier splines.</p>
+<p>Let us consider a set of <span class="arithmatex">\(m+1\)</span> points <span class="arithmatex">\(\{ \mathbf{p}_0, ..., \mathbf{p}_m \}\)</span>
+that we want to interpolate. A naive way to interpolate these points is to use a
+piecewise linear curve formed by <span class="arithmatex">\(m\)</span> consecutive segments connecting two
+adjacent points <span class="arithmatex">\((\mathbf{p}_j\)</span>, <span class="arithmatex">\(\mathbf{p}_{j+1})\)</span>. We can write this curve by
+defining its <span class="arithmatex">\(m\)</span> segments as the linear Bezier splines
+<span class="arithmatex">\(\mathbf{p}^1(u, \{ \mathbf{p}_j, \mathbf{p}_{j+1} \})\)</span>. The concern with this
+interpolation is that it is only <span class="arithmatex">\(\mathcal{C}^0\)</span> continuous, having different
+tangents at each point <span class="arithmatex">\(\mathbf{p}_j\)</span>, as shown in
+<a href="#interpolating_linear">Figure 6.18</a>.</p>
+<p><img alt="interpolating_linear" id="interpolating_linear" src="diagrams/06_modeling/interpolating_linear.png"><br>
+Figure 6.18. Example of the use of linear segments to interpolate a set of
+points.</p>
+<p>Another alternative could be to use a higher-order spline for each segment. For
+example, we could use <span class="arithmatex">\(m / n\)</span> consecutive Bézier splines of <span class="arithmatex">\(n\)</span> degree
+<span class="arithmatex">\(\mathbf{p}^n(u, \{ \mathbf{p}_j, ..., \mathbf{p}_{j+n} \})\)</span>. The resulting
+curve is <span class="arithmatex">\(\mathcal{C}^1\)</span> continuos, but does not pass through all control
+points, as shown in <a href="#interpolating_bezier">Figure 6.19</a>.</p>
+<p><img alt="interpolating_bezier" id="interpolating_bezier" src="diagrams/06_modeling/interpolating_bezier.png"><br>
+Figure 6.19. Example of the use of cubic Bézier splines to interpolate a set of
+points.</p>
+<p>A better interpolation scheme would be to construct a curve that passes trough
+all control points, while having smooth tangents across the whole curve. One way
+to achieve this is to use <span class="arithmatex">\(m\)</span> cubic Bézier splines, where the end points of each
+splines are the original points <span class="arithmatex">\(\mathbf{p}_j\)</span> and the inner points are chosen
+to have continuos tangents. There are many manners in which we can choose
+tangents. One possibility is to set the tangents at each point <span class="arithmatex">\(\mathbf{p}_j\)</span> to
+be parallel to the segment formed by the points
+<span class="arithmatex">\((\mathbf{p}_{j-1}, \mathbf{p}_{j+1})\)</span> as
+<span class="arithmatex">\(\mathbf{t}_{j} = (\mathbf{p}_{j+1} - \mathbf{p}_{j-1})/2\)</span>. This formula is not
+defined for tangents at the endpoints, since it involves the points
+<span class="arithmatex">\(\mathbf{p}_{-1}\)</span> and <span class="arithmatex">\(\mathbf{p}_{m+1}\)</span> that are undefined. We can extend the
+curve to the endpoints by either repeating the endpoints for open curves, as
+<span class="arithmatex">\(\mathbf{p}_{-1}=\mathbf{p}_{0}\)</span> and <span class="arithmatex">\(\mathbf{p}_{m+1}=\mathbf{p}_{m}\)</span>, or using
+the lookup modulo <span class="arithmatex">\(m\)</span> for closed curves, as <span class="arithmatex">\(\mathbf{p}_{-1}=\mathbf{p}_{m}\)</span> and
+<span class="arithmatex">\(\mathbf{p}_{m+1}=\mathbf{p}_{0}\)</span>. The resulting curve, known as the Catmull-Rom
+spline, is shown in <a href="#interpolating_catmullrom">Figure 6.20</a>. We can write the
+curve explicitly by writing the Bézier spline segments as</p>
+<div class="arithmatex">\[
+\mathbf{p}_j^3(u) = \mathbf{p}^3 \left(u, \left\{ \mathbf{p}_j ,
+\mathbf{p}_j + \frac{\mathbf{p}_{j+1} - \mathbf{p}_{j-1}}{6},
+\mathbf{p}_{j+1} - \frac{\mathbf{p}_{j+2} - \mathbf{p}_{j}}{6},
+\mathbf{p}_{j+1} \right\} \right)
+\]</div>
+<p><img alt="interpolating_catmullrom" id="interpolating_catmullrom" src="diagrams/06_modeling/interpolating_catmullrom.png"><br>
+Figure 6.20. Example of the use of Catmull-Rom splines to interpolate a set of
+points.</p>
+<p>Catmull-Rom splines belong to the family of <em>cardinal splines</em> where the
+tangents are defined as
+<span class="arithmatex">\(\mathbf{t}_{j} = (1-c)(\mathbf{p}_{j+1} - \mathbf{p}_{j-1})/2\)</span>. The parameter
+<span class="arithmatex">\(c\)</span>, called tension parameter, controls the tangents directions from the linear
+to the cubic case.</p>
+<p>In general, interpolating splines do not find as much used in design
+application, compared to approximating ones, since they are harder to control.
+At the same time, they are often used to model and simulate hair and fur where
+we seek a better interpolation than linear segments for the same number of
+control points.</p>
+<h2>6.7. B-Splines (*)</h2>
+<p>The last family of splines we will consider are <em>B-splines</em>, a name that stands
+for "basis"-splines. B-splines are approximating curves for a set of <span class="arithmatex">\(m+1\)</span>
+points <span class="arithmatex">\(\{ \mathbf{p}_0, ..., \mathbf{p}_m \}\)</span> defined as the weighted sum of
+the control points scaled by a set of basis functions <span class="arithmatex">\(b_i^n(u) = \beta^n(u-i)\)</span>
+obtained by shifting a kernel <span class="arithmatex">\(B^n(u)\)</span> at each integer value <span class="arithmatex">\(i\)</span>. The B-splines
+kernel <span class="arithmatex">\(\beta^n(u)\)</span> is a piece-wise polynomial of <span class="arithmatex">\(n\)</span> degree. We can write
+B-splines concisely as</p>
+<div class="arithmatex">\[
+\mathbf{p}^n(u, \{ \mathbf{p}_0, ..., \mathbf{p}_m \}) = \sum\nolimits_i^m \beta^n(u-i) \mathbf{p}_i
+\]</div>
+<p>We have previously encountered this idea when discussing image reconstruction.
+The basic premise of B-splines is the same as image convolution that we
+discussed in the previous chapter. In fact, B-splines can be thought of as
+discrete-continuos convolutions of the discrete function <span class="arithmatex">\(\mathbf{p}[i]\)</span> and the
+kernel <span class="arithmatex">\(\beta^n(u)\)</span>, that can be written explicitly as</p>
+<div class="arithmatex">\[
+\mathbf{p}^n(u) = (\mathbf{p} \otimes \beta^n)(u)
+\]</div>
+<p>B-splines basis are defined recursively, so we can compute them for any degree.
+The base case is a B-spline of degree zero that is defined as a constant
+function equal to one for <span class="arithmatex">\(u \in [0,1)\)</span>, and zero otherwise. The B-splines for
+degree <span class="arithmatex">\(n\)</span> are defined as the convolution of the B-splines of degree <span class="arithmatex">\(n-1\)</span> with
+the kernel <span class="arithmatex">\(B^0(u)\)</span>. We can write the recursive definition as</p>
+<div class="arithmatex">\[
+\begin{gathered}
+\beta^0(u) = \begin{cases}1 &amp; \text{for } |u| &lt; \frac{1}{2} \\ 0 &amp; \text{otherwise} \end{cases} \\
+\beta^n(u) = (\beta^{n-1} \otimes \beta^0)(u) = \int\nolimits_{-\infty}^{\infty} \beta^{n-1}(u-t) \beta^0(t) dt
+\end{gathered}
+\]</div>
+<p>In this section, we only cover B-spline of up to degree three. We can write the
+basis functions, plotted in <a href="#bspline_basis">Figure 6.21</a>, as</p>
+<div class="arithmatex">\[
+\begin{gathered}
+\beta^0(u) = \begin{cases}1 &amp; \text{for } |u| &lt; \frac{1}{2} \\ 0 &amp; \text{otherwise} \end{cases} \qquad
+\beta^1(u) = \begin{cases}1 - |u| &amp; \text{for } |u| &lt; 1 \\ 0 &amp; \text{otherwise} \end{cases} \\
+\beta^2(u) = \begin{cases}\frac{1}{2} \left( \frac{3}{2} - |u| \right)^2 &amp; \text{for } |u| &lt; \frac{1}{2} \\ - |u|^2 + \frac{3}{4} &amp; \text{for } \frac{1}{2} \leq |u| &lt; \frac{3}{2} \\ 0 &amp; \text{otherwise} \end{cases} \qquad
+\beta^3(u) = \begin{cases} \frac{1}{6} (3|u|^3 - 6|u|^2 + 4) &amp; \text{for } |u| &lt; 1 \\ \frac{1}{6}(2-|u|)^3 &amp; \text{for } 1 \leq |u| &lt; 2 \\ 0 &amp; \text{otherwise} \end{cases}
+\end{gathered}
+\]</div>
+<p><img alt="bspline_basis" id="bspline_basis" src="diagrams/06_modeling/bspline_basis.png"><br>
+Figure 6.21. Linear, quadratic and cubic B-spline basis functions.</p>
+<p>The resulting B-spline segments, shown in <a href="#bspline_splines">Figure 6.22</a>, are
+affected by the control points in a local manner, similarly to Bézier splines,
+since they have limited support. For B-splines of degree <span class="arithmatex">\(n\)</span> the curve is still
+affected by only <span class="arithmatex">\(n+1\)</span> control points, for any value of <span class="arithmatex">\(u\)</span>. And, just like
+Bézier splines, B-splines points are contained in the convex hull of their
+control points.</p>
+<p><strong>TODO: FIX ENDPOINTS OR USE CLOSED CURVES</strong></p>
+<p><img alt="bspline_splines" id="bspline_splines" src="diagrams/06_modeling/bspline_splines.png"><br>
+Figure 6.22. Linear, quadratic and cubic B-splines.</p>
+<p>B-splines are approximating curves defined for sequences of points. The main
+advantage of B-splines compared to Bézier splines is that B-splines are
+<span class="arithmatex">\(\mathcal{C}^2\)</span> continuous, from the cubic case on, meaning that they have
+continuous curvature over all the range, while maintaining the local control,
+convex hull, and efficiency of Bézier splines. Their main disadvantage is that
+they do not pass through the control points, if this is desired.
+<a href="#interpolating_bspline">Figure 6.23</a> shows an example of B-splines used to
+interpolate a set of points.</p>
+<p><img alt="interpolating_bspline" id="interpolating_bspline" src="diagrams/06_modeling/interpolating_bspline.png"><br>
+Figure 6.23. Example of the use of cubic B-splines to interpolate a set of
+points.</p>
+<p>The B-splines curves we have presented so far are called <em>uniform B-splines</em>
+since the control points have all the same weight. A more general formulation
+allows us to assign different parameters <span class="arithmatex">\(u_i\)</span> to each control point. The
+resulting basis cannot be written as shifted kernels, but are instead defined by
+the recursive relationship</p>
+<div class="arithmatex">\[
+b_0^n(u) = \begin{cases}1 &amp; \text{for } u_i \leq u &lt; u_{i+1} \\
+0 &amp; \text{otherwise} \end{cases} \qquad
+b_i^n(u) = \frac{u - u_i}{u_{i+n} - u_i} b_i^{n-1}(u) + \frac{u_{i+n+1} - u}{u_{i+n+1} - u_{i+1}} b_{i+1}^{n-1}(u)
+\]</div>
+<p>These <em>non-uniform B-splines</em> are more flexible than uniform ones, but also more
+complex to adapt to design applications. They allow for changing the parameter
+range affected by each control points, and also to repeat control points. The
+latter is useful to make the curve pass through desired control points, and to
+model discontinuities in the curve, such as sharp corners. These features though
+require more complex user interfaces to control the curve in design
+applications, and are harder to handle for data-driven applications, such as
+simulation.</p>
+<p>The most used variant are the <em>non-uniform rational B-splines</em>, NURBS in short,
+that are defined as the ratio of two non uniform B-splines, where each control
+point has an associated weight <span class="arithmatex">\(w_i\)</span> as</p>
+<div class="arithmatex">\[
+\mathbf{p}^n(u, \{ \mathbf{p}_0, ..., \mathbf{p}_m \}, \{ w_0, ..., w_m \}) =
+\frac{\sum\nolimits_i^m w_i b_i^n(u) \mathbf{p}_i}{\sum\nolimits_i^m w_i b_i^n(u)}
+\]</div>
+<p>NURBS are the basis of CAD applications and are a generalizations of Bézier and
+B-splines. Their main advantages are that they are perspective-invariant and can
+represent conic sections, such as circles, ellipses, and hyperbolas. The main
+disadvantage is that they are more complex to implement and use, and are less
+efficient to compute with. We will not cover NURBS in this book, since in
+graphics they found little use compared to Bézier splines.</p>
+<h2>6.8. Spline Surfaces (*)</h2>
+<p>Splines can be extended to represent surfaces by using a tensor product
+formulation. We will focus on Bézier splines, but the same formulation can be
+used for other spline families. Let us consider the basis <span class="arithmatex">\(b_i^n(u)\)</span> of Bézier
+splines of degree <span class="arithmatex">\(n\)</span>. We extend this notation to two dimensions by writing a
+two-dimensional index as <span class="arithmatex">\(\mathbf{i} = (i_1, i_2)\)</span>, and a two-dimensional
+parameter as <span class="arithmatex">\(\mathbf{u} = (u_1, u_2)\)</span>. We can construct a basis
+<span class="arithmatex">\(b_{\mathbf{i}}^{n}(\mathbf{u})\)</span> for Bézier surface patches by taking the tensor
+product of the spline basis <span class="arithmatex">\(b_i^n(u)\)</span>, illustrated in
+<a href="#bezierp_basis">Figure 6.24</a>, as</p>
+<div class="arithmatex">\[
+b_{\mathbf{i}}^{n}(\mathbf{u}) = b_{i_1}^n(u_1) b_{i_2}^n(u_2)
+\]</div>
+<p><img alt="bezierp_basis" id="bezierp_basis" src="diagrams/06_modeling/bezierp_basis.png"><br>
+Figure 6.24. Example of Bézier patch basis of degree one to three.</p>
+<p>The resulting basis is a set of <span class="arithmatex">\((n+1)^2\)</span> functions that can be used to define a
+surface patch controlled by <span class="arithmatex">\((n+1)^2\)</span> control points <span class="arithmatex">\(\mathbf{p}_\mathbf{i}\)</span>. We
+show examples of Bézier surface patches in <a href="#bezierp_patches">Figure 6.25</a>, and
+write the surface patch as</p>
+<div class="arithmatex">\[
+\mathbf{p}^n(\mathbf{u}, \{ \mathbf{p}_\mathbf{i} \}) =
+\sum\nolimits_\mathbf{i}^{(n,n)} b_\mathbf{i}^n(\mathbf{u}) \mathbf{p}_\mathbf{i} =
+\sum\nolimits_{i_1}^n \sum\nolimits_{i_2}^n b_{i_1}^n(u_1) b_{i_2}^n(u_2) \mathbf{p}_{i_1,i_2}
+\]</div>
+<p><img alt="bezierp_patches" id="bezierp_patches" src="diagrams/06_modeling/bezierp_patches.png"><br>
+Figure 6.25. Bézier surface patches of degree one to three.</p>
+<p>Lines of constant <span class="arithmatex">\(u_1\)</span> or <span class="arithmatex">\(u_2\)</span> are called isoparametric curves, or isolines
+for short. <a href="#bezierp_patches">Figure 6.25</a> shows isolines for the displayed
+patches. For Bézier patches, isoparametric curves are Bézier splines whose
+control points can be written as</p>
+<div class="arithmatex">\[
+\begin{gathered}
+\mathbf{p}_{u_1}^n(u_2) = \sum\nolimits_{i_2}^n b_{i_2}^n(u_2) \mathbf{p}_{i_2,u_1} \qquad
+\mathbf{p}_{i_2,u_1} = \sum\nolimits_{i_1}^n b_{i_1}^n(u_1) \mathbf{p}_{i_1,i_2}
+\\
+\mathbf{p}_{u_2}^n(u_1) = \sum\nolimits_{i_1}^n b_{i_1}^n(u_1) \mathbf{p}_{i_1,u_2} \qquad
+\mathbf{p}_{i_1,u_2} = \sum\nolimits_{i_2}^n b_{i_2}^n(u_2) \mathbf{p}_{i_1,i_2}
+\end{gathered}
+\]</div>
+<p>Bézier patches can be combined to form more complex surfaces. We join patches by
+setting the control points on the boundary of a patch to be equal to the ones on
+the boundary of an adjacent patch. We can derive constraints on the tangents as
+well, just like we did for Bézier splines.</p>
+<p>Covering splines surfaces in depth is beyond the scope of this book, mostly
+because they are rarely used in graphics. The main reason is that joining
+surface patches is not as simple as joining spline curves, since the control
+points of consecutive patches are not necessarily aligned. This makes it hard to
+join patches in a smooth manner to form complex surfaces, which is the goal of
+most design applications. Furthermore, as surfaces are deformed, for example in
+animation, the constraints imposed by the control points are hard to maintain
+properly leading to artifacts in the animated shapes. These are the main reasons
+why NURBS surfaces are rarely used in graphics, while they are the fundamental
+primitive of CAD applications where some of these concerns are less relevant.</p>
+<h2>6.9. Subdivision Curves</h2>
+<p>The spline curves we presented so far are parametric curves where the curve
+point can be written explicitly in terms of the curve parameter. An alternative
+representation for smooth curves are the ones defined as recursive refinement of
+a set of line segments. The main advantage of subdivision curves is that they
+support complex curve arrangements that are hard to model with splines. The main
+disadvantage is that they are more expensive to compute with, and are possibly
+less intuitive to control for designers. In this book, we follow the
+presentation found in the paper
+<a href="https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&amp;arnumber=1297015"><em>A Factored Approach to Subdivision Surfaces</em></a>
+by Joe Warren and Scott Schaefer.</p>
+<p>Let us consider a curve represented by a set of line segments. We introduce a
+<em>subdivision rule</em> <span class="arithmatex">\(\text{subdivide}(\mathcal{L})\)</span> that takes as input a line
+set <span class="arithmatex">\(\mathcal{L}\)</span> and outputs a new line sets with more line segments and a
+smoother shape than the original. Starting from an initial line set
+<span class="arithmatex">\(\mathcal{L}^0\)</span>, we recursively apply the subdivision rule to obtain a sequence
+of line sets <span class="arithmatex">\(\{ \mathcal{L}^l \}\)</span> where each line set <span class="arithmatex">\(\mathcal{L}^l\)</span> is the
+result of applying the subdivision rule to the previous line set
+<span class="arithmatex">\(\mathcal{L}^{l-1}\)</span>, written as
+<span class="arithmatex">\(\mathcal{L}^l = \text{subdivide}(\mathcal{L}^{l-1})\)</span>. This procedure is
+illustrated in as shown in <a href="#subcurve_steps">Figure 6.26</a>. Another way to think
+about this is that the line set <span class="arithmatex">\(\mathcal{L}^l\)</span> is the result of applying the
+subdivision rule <span class="arithmatex">\(l\)</span> times to the initial line set <span class="arithmatex">\(\mathcal{L}^0\)</span>, written as
+<span class="arithmatex">\(\mathcal{L}^l = \text{subdivide}^l(\mathcal{L}^0)\)</span>. We define the <em>subdivision
+curve</em> <span class="arithmatex">\(\mathcal{C}\)</span> as the limit of applying the subdivision rule <span class="arithmatex">\(l\)</span> times,
+with <span class="arithmatex">\(l\)</span> that goes to infinity, to a starting line set <span class="arithmatex">\(\mathcal{L}^0\)</span>, written
+as</p>
+<div class="arithmatex">\[
+\mathcal{C} = \lim_{l \rightarrow \infty} \mathcal{L}^l =
+             \lim_{l \rightarrow \infty} \text{subdivide}^l(\mathcal{L}^0)
+\qquad \mathcal{L}^{l+1} = \text{subdivide}(\mathcal{L}^l)
+\]</div>
+<p><img alt="subcurve_steps" id="subcurve_steps" src="diagrams/06_modeling/subcurve_steps.png"><br>
+Figure 6.26. A subdivision curve is the limit curve obtained by applying the
+subdivision rule an "infinite" number of times to an input polyline.</p>
+<p>The properties of the subdivision curve depend on the chosen subdivision rule.
+The most commonly-used subdivision rules are the ones that produce smooth curves
+of <span class="arithmatex">\(\mathcal{C}^2\)</span> continuity. Most subdivision rules are define as two separate
+steps, illustrated in <a href="#subcurve_step">Figure 6.27</a>: refinement and smoothing.
+During refinement, new vertices are added by splitting each line segment. During
+smoothing, the polyline vertices are updated as the weighted average of
+themselves and their neighbors. Different subdivision rules differ in the number
+and position of the added vertices, and in the weights used for smoothing.</p>
+<p><img alt="subcurve_step" id="subcurve_step" src="diagrams/06_modeling/subcurve_step.png"><br>
+Figure 6.27. A step in the subdivision process. Starting from an input polyline
+(left), we first refine the line by inserting a point in the middle of each
+segment (middle). We then smooth the curve by setting each vertex position to a
+weighted average of its neighbors (right).</p>
+<p>In the reminder of this section, we introduce the subdivision rule that produces
+a limit curve equivalent to a cubic B-spline. We represent a set of lines
+<span class="arithmatex">\(\mathcal{L}=(\mathbf{p}_i, \mathbf{l}_j)\)</span> as an array of vertices
+<span class="arithmatex">\(\mathbf{p}_i\)</span> and an array of lines <span class="arithmatex">\(\mathbf{l}_j\)</span>. Each line <span class="arithmatex">\(\mathbf{l}_j\)</span> is
+a pair of indices <span class="arithmatex">\((l_{j,1}, l_{j,2})\)</span> into the vertex array <span class="arithmatex">\(\mathbf{p}_i\)</span>. We
+indicate with <span class="arithmatex">\(n_v\)</span> and <span class="arithmatex">\(n_l\)</span> the number of vertices and lines respectively. We
+use this representation since it can represent open and close curves, as well as
+more complex curve arrangements, called <em>curve networks</em>, as shown in
+<a href="#subcurve_curves">Figure 6.28</a>.</p>
+<p><img alt="subcurve_curves" id="subcurve_curves" src="diagrams/06_modeling/subcurve_curves.png"><br>
+Figure 6.28. Example of a curve network used as input for subdivision curves.</p>
+<p>We write the subdivision rule as a function that takes as input a line set
+<span class="arithmatex">\(\mathcal{L}\)</span> and gives as output the smoother line set <span class="arithmatex">\(\bar{\mathcal{L}}\)</span>. We
+split the rule into two steps, refinement and smoothing, illustrated in
+<a href="#subcurve_step">Figure 6.27</a>. During refinement, we keep the original vertices,
+and in addition insert a new vertex in the middle of each segment, resulting in
+a new line set <span class="arithmatex">\(\hat{\mathcal{L}}=(\hat{\mathbf{p}}_i, \hat{\mathbf{l}}_j)\)</span> with
+<span class="arithmatex">\(n_v + n_l\)</span> vertices and <span class="arithmatex">\(2 n_l\)</span> lines. If we write as <span class="arithmatex">\(\mathbf{m}_j\)</span> the
+midpoint of line <span class="arithmatex">\(\mathbf{l}_j\)</span>, we can write the refined line set as</p>
+<div class="arithmatex">\[
+\begin{alignedat}{2}
+&amp;\hat{\mathbf{p}}_{i} = \mathbf{p}_i &amp;&amp; \qquad \text{original vertices} \\
+&amp;\hat{\mathbf{p}}_{n_v + j} = \mathbf{m}_j = \tfrac{1}{2} \mathbf{p}_{l_{j,1}} + \tfrac{1}{2} \mathbf{p}_{l_{j,2}} &amp;&amp; \qquad \text{line vertices} \\
+&amp;\hat{\mathbf{l}}_{2j} = (l_{j, 1}, n_v+j) \qquad \hat{\mathbf{l}}_{2j+1} = (n_v+j, l_{j, 2}) &amp;&amp; \qquad \text{line segments}
+\end{alignedat}
+\]</div>
+<p>We then smooth the curve by updating each vertex position as a weighted average
+of itself and its neighbors, to obtain the final line set
+<span class="arithmatex">\(\bar{\mathcal{L}}=(\bar{\mathbf{p}}_i, \bar{\mathbf{l}}_j)\)</span>. The smoothing
+weights control the shape of the limit curve, and are written as the weighted
+average of the point being smoothed and the adjacent points. Points are adjacent
+if there is a line connecting them. We indicate with <span class="arithmatex">\(\hat{A}^v_i\)</span> the set of
+vertices adjacent to vertex <span class="arithmatex">\(\hat{\mathbf{p}}_i\)</span>, and with <span class="arithmatex">\(\hat{A}^l_i\)</span> the set
+of adjacent lines. We obtain a B-spline as limit curve when we set the weight
+for the point being smoothed to one-half and the weight for the adjacent points
+as one-half divided by the number of adjacent points. The exception to this
+rules are end points that would shrink if treated this way. Instead, we lock end
+points in place to avoid shortening open lines. As for the line segments, these
+are not changed from the refinement step, so we can write them as
+<span class="arithmatex">\(\bar{\mathbf{l}}_j= \hat{\mathbf{l}}_j\)</span>. The smoothing step can then be written
+as</p>
+<div class="arithmatex">\[
+\begin{alignedat}{2}
+&amp;\bar{\mathbf{p}}_i = \frac{1}{2} \hat{\mathbf{p}}_i + \sum\nolimits_{k \in \hat{A}^p_i} \frac{1}{2 |\hat{A}^p_i|} \hat{\mathbf{p}}_k &amp;&amp; \qquad \text{interior vertices} \\
+&amp;\bar{\mathbf{p}}_i = \hat{\mathbf{p}}_{i} &amp;&amp; \qquad \text{end vertices} \\
+\end{alignedat}
+\]</div>
+<p>The previous equation can in fact be written in a more elegant way by observing
+that the weighted average of vertex positions can be written as the unweighted
+average of the adjacent lines' midpoints
+<span class="arithmatex">\(\hat{\mathbf{m}}_j = \tfrac{1}{2} \hat{\mathbf{p}}_{\hat{l}_{j,1}} + \tfrac{1}{2} \hat{\mathbf{p}}_{\hat{l}_{j,2}}\)</span>
+as</p>
+<div class="arithmatex">\[
+\begin{alignedat}{2}
+&amp;\bar{\mathbf{p}}_i = \frac{1}{|\hat{A}^l_i|} \sum\nolimits_{k \in \hat{A}^l_i} \hat{\mathbf{m}}_k = \frac{1}{|\hat{A}^l_i|} \sum\nolimits_{k \in \hat{A}^l_i} \left( \tfrac{1}{2} \hat{\mathbf{p}}_{\hat{l}_{j,1}} + \tfrac{1}{2} \hat{\mathbf{p}}_{\hat{l}_{j,2}} \right) &amp;&amp; \qquad \text{interior vertices} \\
+&amp;\bar{\mathbf{p}}_i = \hat{\mathbf{p}}_{i} &amp;&amp; \qquad \text{end vertices} \\
+\end{alignedat}
+\]</div>
+<p>In the previous formulation, we can force the curve to go through some of the
+original points by locking their position during the smoothing step. This is
+used to model sharp corners in the curve. We can easily extend the previous
+formulation to support corners by explicitly tagging vertices as corners. During
+smoothing, the corner vertices are locked in place, behaving as end points. An
+example of corner vertices is shown in <a href="#subcurve_creases">Figure 6.29</a>.</p>
+<p><img alt="subcurve_creases" id="subcurve_creases" src="diagrams/06_modeling/subcurve_creases.png"><br>
+Figure 6.29. Subdivision curve with tagged corner vertices.</p>
+<h2>6.10. Subdivision Curves Implementation (*)</h2>
+<p>Subdivision rules are known to be hard to implement. The main reason is that
+they require to carefully track vertex and line indices, to compute adjacent
+sets, and to model the relationship between original and refined indices. We
+present here a sketch of a possible implementation split between refinement and
+smoothing. In this sketch, we try to simplify the tracking of indices by keeping
+vertices of different type grouped together.</p>
+<p>In the refinement step, we split segments in two by adding a new vertex in the
+middle of each line segment. We implement refinement by first adding two sets of
+vertices, one corresponding to the original vertices, and one created by adding
+a vertex in the middle of each line segment. We add the two sets separately, so
+that vertices <span class="arithmatex">\(\hat{\mathbf{p}}_i\)</span> with <span class="arithmatex">\(i &lt; n_v\)</span> correspond to the original
+vertices <span class="arithmatex">\(\mathbf{p}_i\)</span>, while vertices <span class="arithmatex">\(\hat{\mathbf{p}}_i\)</span> with <span class="arithmatex">\(i = n_v+j\)</span>,
+hence <span class="arithmatex">\(i \geq n_v\)</span> correspond to the midpoint of lines <span class="arithmatex">\(\mathbf{l}_j\)</span>. We then
+create the line indices by adding two line segments for each original line,
+using the vertex indices from the two sets. We sketch here the pseudo-code for
+the refinement step:</p>
+<div class="arithmatex">\[
+\begin{alignedat}{2}
+&amp; \text{function } \text{subdivide\_lines}(\mathbf{l},\mathbf{p}) \rightarrow \hat{\mathbf{l}},\hat{\mathbf{p}}: \\
+&amp;\quad\text{foreach vertex } \mathbf{p}_i : \hat{\mathbf{p}}_i := \mathbf{p}_i
+  &amp;&amp;\quad\textcolor{gray}{\text{\it add original vertices}} \\
+&amp;\quad\text{foreach line } \mathbf{l}_j : \hat{\mathbf{p}}_{n_v + j} :=
+  \tfrac{1}{2} \mathbf{p}_{l_{j,1}} + \tfrac{1}{2} \mathbf{p}_{l_{j,2}}
+  &amp;&amp;\quad\textcolor{gray}{\text{\it add line vertices}} \\
+&amp;\quad\text{foreach line } \mathbf{l}_j : \hat{\mathbf{l}}_{2j} := (l_{j,1}, n_v+j);\enspace \hat{\mathbf{l}}_{2j+1} := (n_v+j, l_{j,2})
+  &amp;&amp;\quad\textcolor{gray}{\text{\it add line segments}} \\
+&amp;\quad\text{return } \hat{\mathbf{l}}, \hat{\mathbf{p}} \\
+\end{alignedat}
+\]</div>
+<p>In the smoothing step, we set each vertex position to the average of the
+midpoints of all lines adjacent to the given vertex. The naive way to implement
+this is to loop over vertices and then over lines. But this leads to a quadratic
+algorithm that is prohibitive for all but the simplest cases. Instead, we can
+compute the same average by looping over lines once and updating the position of
+the each vertex by the line midpoint. We sketch the pseudo-code for the
+smoothing step here:</p>
+<div class="arithmatex">\[
+\begin{alignedat}{2}
+&amp; \text{function } \text{subdivide\_bspline}(\mathbf{l},\mathbf{p}) \rightarrow \hat{\mathbf{l}},\bar{\mathbf{p}}: \\
+&amp;\quad\hat{\mathbf{l}}, \hat{\mathbf{p}} := \text{subdivide\_lines}(\mathbf{l},\mathbf{p})
+  &amp;&amp;\quad\textcolor{gray}{\text{\it refinement step}} \\
+&amp;\quad n := \text{array}(\hat{n}_v)
+  &amp;&amp;\quad\textcolor{gray}{\text{\it array to count contributions}} \\
+&amp;\quad\text{foreach point } \hat{\mathbf{p}}_i :
+  &amp;&amp;\quad\textcolor{gray}{\text{\it accumulate endpoints}} \\
+&amp;\quad\quad\text{if not is\_endpoint}(\bar{\mathbf{p}}_i): \text{skip}
+  &amp;&amp;\quad\textcolor{gray}{\text{\it skip non-end points}} \\
+&amp;\quad\quad\bar{\mathbf{p}}_i := \bar{\mathbf{p}}_i + \hat{\mathbf{p}}_i;\ \
+n_i := n_i + 1
+  &amp;&amp;\quad\textcolor{gray}{\text{\it accumulate midpoint}} \\
+&amp;\quad\text{foreach line } \hat{\mathbf{l}}_j :
+  &amp;&amp;\quad\textcolor{gray}{\text{\it accumulate midpoints}} \\
+&amp;\quad\quad\hat{\mathbf{m}}_j := \tfrac{1}{2} \hat{\mathbf{p}}_{l_{j, 1}} + \tfrac{1}{2} \hat{\mathbf{p}}_{l_{j,2}}
+  &amp;&amp;\quad\textcolor{gray}{\text{\it compute midpoint}} \\
+&amp;\quad\quad\text{foreach vertex index } v \in \hat{\mathbf{l}}_j :
+  &amp;&amp;\quad\textcolor{gray}{\text{\it accumulate midpoint}} \\
+&amp;\quad\quad\quad\text{if not is\_interior}(\bar{\mathbf{p}}_v): \text{skip}
+  &amp;&amp;\quad\textcolor{gray}{\text{\it skip non-interior points}} \\
+&amp;\quad\quad\quad\bar{\mathbf{p}}_v := \bar{\mathbf{p}}_v + \hat{\mathbf{m}}_j;\ \
+n_v := n_v + 1
+  &amp;&amp;\quad\textcolor{gray}{\text{\it accumulate midpoint}} \\
+&amp;\quad\text{foreach point } \bar{\mathbf{p}}_i : \bar{\mathbf{p}}_i := \bar{\mathbf{p}}_i / n_i
+  &amp;&amp;\quad\textcolor{gray}{\text{\it normalize points}} \\
+&amp;\quad\text{return } \hat{\mathbf{l}}, \bar{\mathbf{p}} \\
+\end{alignedat}
+\]</div>
+<h2>6.11. Subdivision Surfaces</h2>
+<p>The most common representation for smooth surfaces in many graphics applications
+are subdivision surfaces. A subdivision surface is obtain by repeatedly applying
+a subdivision rule to a polygon mesh, in a manner similar to what we have shown
+for subdivision curves. Subdivision surfaces are defined for both quad and
+triangle meshes, with the most common use case being quad meshes. Just like
+before, our presentation is based on the paper
+<a href="https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&amp;arnumber=1297015"><em>A Factored Approach to Subdivision Surfaces</em></a>
+by Joe Warren and Scott Schaefer.</p>
+<p>When rendering with subdivision surfaces, we need to be able to evaluate the
+surface position and normal at any point on the surface. While there are methods
+to compute the surface position and normal analytically, they are too complex
+for this introduction text. Instead, we will use a simpler approach where we
+compute the surface positions by applying the subdivision rule up to a desired
+level of detail, and then compute smooth normals from the surface mesh. An
+example of rendering with a subdivision surface is shown in
+<a href="#subsurf_cube">Figure 6.30</a>.</p>
+<p><img alt="subsurf_cube" id="subsurf_cube" src="images/06_modeling/subsurf_cube.png"><br>
+Figure 6.30. A subdivision surface (left), subdivided once (middle), and three
+times (right). The latter surface is rendered with per-vertex normals.
+Environment and textures courtesy of <a href="https://polyhaven.com">PolyHaven</a>.</p>
+<p>Let us consider a surface represented as a set of faces, organized in an indexed
+meshes. We introduce a <em>subdivision rule</em> <span class="arithmatex">\(\text{subdivide}(\mathcal{M})\)</span> that
+takes as input a mesh <span class="arithmatex">\(\mathcal{M}\)</span> and outputs a new mesh with more faces and a
+smoother shape than the original. Starting from an initial mesh <span class="arithmatex">\(\mathcal{M}^0\)</span>,
+we recursively apply the subdivision rule to obtain a sequence of meshes
+<span class="arithmatex">\(\{ \mathcal{M}^l \}\)</span> where each mesh <span class="arithmatex">\(\mathcal{M}^l\)</span> is the result of applying
+the subdivision rule to the previous mesh <span class="arithmatex">\(\mathcal{M}^{l-1}\)</span>, written as
+<span class="arithmatex">\(\mathcal{M}^l = \text{subdivide}(\mathcal{M}^{l-1})\)</span>. This is illustrated in
+<a href="#subsurf_steps">Figure 6.31</a>. We define the <em>subdivision surface</em> <span class="arithmatex">\(\mathcal{S}\)</span>
+as the limit of applying the subdivision rule <span class="arithmatex">\(l\)</span> times, with <span class="arithmatex">\(l\)</span> that goes to
+infinity, to a starting mesh <span class="arithmatex">\(\mathcal{M}^0\)</span>, written as</p>
+<div class="arithmatex">\[
+\mathcal{S} = \lim_{l \rightarrow \infty} \mathcal{M}^l =
+             \lim_{l \rightarrow \infty} \text{subdivide}^l(\mathcal{M}^0)
+\qquad \mathcal{M}^{l+1} = \text{subdivide}(\mathcal{M}^l)
+\]</div>
+<p><img alt="subsurf_steps" id="subsurf_steps" src="diagrams/06_modeling/subsurf_steps.png"><br>
+Figure 6.31. A subdivision surface is the limit surface obtained by applying the
+subdivision rule an "infinite" number of times to an input mesh.</p>
+<p>Subdivision surfaces differ in the choice of subdivision rule used and whether
+they are based on quad or triangle meshes. In this book, we focus on the
+Catmull-Clark subdivision rule for quad meshes, since it is the most commonly
+used in graphics. Subdivision rules work in two steps, illustrated in
+<a href="#subsurf_step">Figure 6.32</a>: refinement and smoothing. In mesh refinement, we
+add vertices and faces to the mesh to increase its resolution. We split each
+quad in four by inserting a vertex in the midpoint of each edge and a vertex in
+the centroid of each face. Refinement is followed by mesh smoothing, where the
+vertices of the subdivided mesh are moved to new locations to make the surface
+smoother. The new smoothed vertex positions are computed as a weighted average
+of the positions of its adjacent vertices. The weights determine the shape of
+the final surface.</p>
+<p><img alt="subsurf_step" id="subsurf_step" src="diagrams/06_modeling/subsurf_step.png"><br>
+Figure 6.32. A step in the subdivision process. Starting from an input mesh
+(left), we first refine the mesh by splitting each face in four faces (middle).
+We then smooth the mesh by moving each vertex to a weighted average of its
+neighbors (right).</p>
+<p>We represent a mesh <span class="arithmatex">\(\mathcal{M}=(\mathbf{q}_j, \mathbf{p}_i)\)</span> as a set of quads
+<span class="arithmatex">\(\mathbf{q}_j\)</span> and a set of vertices <span class="arithmatex">\(\mathbf{p}_i\)</span>. Each quad is represented as
+four indices <span class="arithmatex">\((q_{j,1}, q_{j,2}, q_{j,3}, q_{j,4})\)</span> into the vertex array
+<span class="arithmatex">\(\mathbf{p}_i\)</span>. We write the subdivision rule by splitting refinement and
+smoothing, as illustrated in <a href="#subsurf_step">Figure 6.32</a>. In the refinement
+step, we split each face into four quads by inserting a vertex in the midpoint
+of each edge, and a vertex in the centroid of each quad. We indicate with
+<span class="arithmatex">\(\mathbf{e}_k\)</span> the set of edges, represented as pairs of indices
+<span class="arithmatex">\((e_{k,1}, e_{k,2})\)</span> into the vertex array <span class="arithmatex">\(\mathbf{p}_i\)</span>. The refined mesh
+<span class="arithmatex">\(\hat{\mathcal{M}}=(\hat{\mathbf{q}}_j, \hat{\mathbf{p}}_i)\)</span> has
+<span class="arithmatex">\(n_v + n_e + n_f\)</span> vertices and <span class="arithmatex">\(4 n_f\)</span> faces, where <span class="arithmatex">\(n_v\)</span>, <span class="arithmatex">\(n_e\)</span>, <span class="arithmatex">\(n_f\)</span> are the
+number of vertices, edges and faces of the original mesh. In the following
+equations, we indicate with <span class="arithmatex">\(\tilde{e}(i,j)\)</span> the index of the edge that connects
+vertices <span class="arithmatex">\((i, j)\)</span>. If we write an edge midpoint as <span class="arithmatex">\(\mathbf{m}_k\)</span>, and a face
+centroid as <span class="arithmatex">\(\mathbf{c}_j\)</span>, the refinement step can be written as</p>
+<div class="arithmatex">\[
+\begin{alignedat}{2}
+&amp;\hat{\mathbf{p}}_{i} = \mathbf{p}_i &amp;&amp; \qquad \text{original vertices} \\
+&amp;\hat{\mathbf{p}}_{n_v + k} = \mathbf{m}_k = \tfrac{1}{4}\mathbf{p}_{e_{k,1}} + \tfrac{1}{4} \mathbf{p}_{e_{k,2}} &amp;&amp; \qquad \text{edge vertices} \\
+&amp;\hat{\mathbf{p}}_{n_v + n_e + j} = \mathbf{c}_j = \tfrac{1}{4}\mathbf{p}_{q_{j,1}} + \tfrac{1}{4} \mathbf{p}_{q_{j,2}} + \tfrac{1}{4} \mathbf{p}_{q_{j,3}} + \tfrac{1}{4} \mathbf{p}_{q_{j,4}} &amp;&amp; \qquad \text{face vertices} \\
+&amp;\hat{\mathbf{q}}_{4j+c} = (q_{j,c}, n_v + \tilde{e}(q_{j,c}, q_{j,c+1}), n_v + n_e + j, n_v + \tilde{e}(q_{j,c}, q_{j,c-1})) \quad c \in [1,4] &amp;&amp; \qquad \text{split faces}
+\end{alignedat}
+\]</div>
+<p>In the smoothing step, we differentiate between two cases: internal vertices
+that have in the surface interior, and boundary vertices that are on the surface
+boundary. For internal vertices, we compute the new vertex position as the
+average of the adjacent face centroids. For boundary vertices, we compute the
+new vertex position as the average of the adjacent edge midpoints. This
+definition would give us a smooth surface, with <span class="arithmatex">\(\mathcal{C}^2\)</span> continuity, in
+all cases but around the interior vertices that have more than four neighboring
+faces, where the surface is only <span class="arithmatex">\(\mathcal{C}^1\)</span>. In these cases, we can
+ameliorate the problem by correcting the average based on the number of
+neighboring faces, as shown in <a href="#subsurf_stepavg">Figure 6.33</a>. We also include
+the case of vertices marked by users to be corners, that are locked in place
+during smoothing. If we indicate as <span class="arithmatex">\(\hat{A}^f_i\)</span> the set of faces adjacent to
+vertex <span class="arithmatex">\(\mathbf{p}_i\)</span>, and with <span class="arithmatex">\(\hat{A}^e_i\)</span> the set of edges adjacent to
+vertex <span class="arithmatex">\(\mathbf{p}_i\)</span>, we can write the smoothing step as</p>
+<div class="arithmatex">\[
+\begin{alignedat}{2}
+&amp;\bar{\mathbf{p}}_i = (1 - w_i) \hat{\mathbf{p}}_i + \frac{w_i}{|\hat{A}^f_i|} \sum\nolimits_{k \in \hat{A}^f_i} \hat{\mathbf{c}}_k &amp;&amp; \qquad \text{internal points} \\
+&amp;\quad = (1 - w_i) \hat{\mathbf{p}}_i + \frac{w_i}{|\hat{A}^f_i|} \sum\nolimits_{k \in \hat{A}^f_i} \left( \tfrac{1}{4} \hat{\mathbf{p}}_{\hat{q}_{k,1}} + \tfrac{1}{4} \hat{\mathbf{p}}_{\hat{q}_{k,2}} + \tfrac{1}{4} \hat{\mathbf{p}}_{\hat{q}_{k,3}} + \tfrac{1}{4} \hat{\mathbf{p}}_{\hat{q}_{k,4}} \right) &amp;&amp; \qquad w_i = 4 / |A^f_i| \\
+&amp;\bar{\mathbf{p}}_i = \frac{1}{|\hat{A}^e_i|} \sum\nolimits_{k \in \hat{A}^e_i} \hat{\mathbf{m}}_k = \frac{1}{|\hat{A}^l_i|} \sum\nolimits_{k \in \hat{A}^e_i} \left( \tfrac{1}{2} \hat{\mathbf{p}}_{\hat{e}_{k,1}} + \tfrac{1}{2} \hat{\mathbf{p}}_{\hat{e}_{k,2}} \right) &amp;&amp; \qquad \text{boundary points} \\
+&amp;\bar{\mathbf{p}}_i = \hat{\mathbf{p}}_i &amp;&amp; \qquad \text{corner points} \\
+\end{alignedat}
+\]</div>
+<p><img alt="subsurf_stepavg" id="subsurf_stepavg" src="diagrams/06_modeling/subsurf_stepavg.png"><br>
+Figure 6.33. Effect on correction during smoothing for vertices with more than
+four neighboring faces. The correction is proportional to the number of
+neighboring faces.</p>
+<p>The subdivision rule presented above can handle any polygon as input, since
+during refinement a polygon of any number of vertices can be split into quads by
+splitting the polygon edges and inserting a vertex in the centroid of the
+polygon, as shown in <a href="#subsurf_input">Figure 6.34</a>. After subdivision, all faces
+are quads, so the smoothing step remains the same.</p>
+<p><img alt="subsurf_input" id="subsurf_input" src="diagrams/06_modeling/subsurf_input.png"><br>
+Figure 6.34. Catmull-Clark subdivision supports all input polygons by splitting
+them into quads.</p>
+<p>In the previous formulation, we can tag vertices as corners to force the surface
+to go through some of the original points by locking their position during the
+smoothing step. We can also tag edges as creases to introduce sharp lines on the
+surface. During smoothing, corner vertices are locked in place, while creased
+edges are treated as boundary edges. An example of creasing is shown in
+<a href="#subsurf_creases">Figure 6.35</a>.</p>
+<p><img alt="subsurf_creases" id="subsurf_creases" src="diagrams/06_modeling/subsurf_creases.png"><br>
+Figure 6.35. Examples of corner vertices and creased edges.</p>
+<h2>6.12. Subdivision Surfaces Implementation (*)</h2>
+<p>Just like subdivision curves, subdivision surfaces are known to be hard to
+implement, so we here a sketch of a possible implementation to clarify the
+reader. One complication found when subdividing meshes is that we need to ensure
+that faces that share an edge use the same edge vertex during refinement. If we
+duplicate edge vertices, we would introduce a thin crack in the surface that
+would not subdivide properly any longer. The easiest way to do this is the
+generate a list of edges without duplication, and have a function that returns
+the edge index given the edge end points. This can be done by either using a
+dictionary keyed by the edge indices, or by sorting the edge endpoints, removing
+duplicates, and using binary search to get the edge index. In the reminder of
+this section, we indicate with <span class="arithmatex">\(\tilde{e}(i,j)\)</span> the edge index corresponding to
+the pair of vertices <span class="arithmatex">\((i, j)\)</span>. Also, for simplicity of notation, we consider
+here only quads as input.</p>
+<p>In the refinement step, we split each face into four by adding a new vertex in
+the middle of each edge and a new vecrtex in the centroid of each face. We
+implement refinement by first adding three sets of vertices, corresponding to
+the original vertices, the edge vertices and the face vertices. We add the sets
+separately, so that vertices <span class="arithmatex">\(\hat{\mathbf{p}}_i\)</span> with <span class="arithmatex">\(i &lt; n_v\)</span> correspond to
+the original vertices <span class="arithmatex">\(\mathbf{p}_i\)</span>, vertices <span class="arithmatex">\(\hat{\mathbf{p}}_i\)</span> with
+<span class="arithmatex">\(i = n_v+k\)</span> correspond to the edges <span class="arithmatex">\(\mathbf{e}_k\)</span>, and vertices
+<span class="arithmatex">\(\hat{\mathbf{p}}_i\)</span> with <span class="arithmatex">\(i = n_v+n_e+j\)</span> correspond to the faces
+<span class="arithmatex">\(\mathbf{q}_j\)</span>, We then create the quad indices following the equations reported
+in the previous section. We sketch a pseudo-code for the refinement step below:</p>
+<div class="arithmatex">\[
+\begin{alignedat}{2}
+&amp; \text{function } \text{subdivide\_quads}(\mathbf{q}, \mathbf{p}) \rightarrow \hat{\mathbf{q}},\hat{\mathbf{p}}: \\
+&amp;\quad \mathbf{e} := \text{get\_edges}(\mathbf{q})
+  &amp;&amp;\quad\textcolor{gray}{\text{\it get edge list}} \\
+&amp;\quad\text{foreach vertex } \mathbf{p}_i : \hat{\mathbf{p}}_i := \mathbf{p}_i
+  &amp;&amp;\quad\textcolor{gray}{\text{\it add original vertices}} \\
+&amp;\quad\text{foreach edge } \mathbf{e}_k : \hat{\mathbf{p}}_{n_v + k} :=
+  \tfrac{1}{2}\mathbf{p}_{e_{k,1}} + \tfrac{1}{2}\mathbf{p}_{e_{k,2}}
+  &amp;&amp;\quad\textcolor{gray}{\text{\it add edge vertices}} \\
+&amp;\quad\text{foreach quad } \mathbf{q}_j : \hat{\mathbf{p}}_{n_v + n_e + j} :=
+   \tfrac{1}{4}\mathbf{p}_{q_{j,1}} + \tfrac{1}{4} \mathbf{p}_{q_{j,2}} + \tfrac{1}{4} \mathbf{p}_{q_{j,3}} + \tfrac{1}{4} \mathbf{p}_{q_{j,4}}
+  &amp;&amp;\quad\textcolor{gray}{\text{\it add face vertices}} \\
+&amp;\quad\text{foreach quad } \mathbf{q}_j \text{ and index } c \in [0,4):
+  &amp;&amp;\quad\textcolor{gray}{\text{\it add quad faces}} \\
+&amp;\quad\quad\hat{\mathbf{q}}_{4j+c} = (q_{j,c}, n_v + \tilde{e}(q_{j,c}, q_{j,c+1}), n_v + n_e + j, n_v + \tilde{e}(q_{j,c}, q_{j,c-1}))
+  &amp;&amp;\quad\textcolor{gray}{\text{\it add quad face}} \\
+&amp;\quad\text{return } \hat{\mathbf{q}}, \hat{\mathbf{p}} \\
+\end{alignedat}
+\]</div>
+<p>In the smoothing step, we set each vertex position to either the weighted
+average of neighboring face centroids, for interior points, or the weighted
+average of neighboring edges, for boundary vertices. We also include the case of
+corner vertices that are locked in place during smoothing. We sketch a
+pseudo-code for the smoothing step below:</p>
+<div class="arithmatex">\[
+\begin{alignedat}{2}
+&amp; \text{function } \text{subdivide\_catmullclark}(\mathbf{q},\mathbf{p}) \rightarrow \hat{\mathbf{q}},\bar{\mathbf{p}}: \\
+&amp;\quad\hat{\mathbf{q}}, \hat{\mathbf{p}} := \text{subdivide\_quads}(\mathbf{q},\mathbf{p})
+  &amp;&amp;\quad\textcolor{gray}{\text{\it refinement step}} \\
+&amp;\quad \hat{\mathbf{e}}_k := \text{get\_edges}(\hat{\mathbf{q}}_j)
+  &amp;&amp;\quad\textcolor{gray}{\text{\it get edge list}} \\
+&amp;\quad\text{foreach point } \hat{\mathbf{p}}_i :
+  &amp;&amp;\quad\textcolor{gray}{\text{\it accumulate corner points}} \\
+&amp;\quad\quad\text{if not is\_corner}(\bar{\mathbf{p}}_i): \text{skip}
+  &amp;&amp;\quad\textcolor{gray}{\text{\it skip non-corner points}} \\
+&amp;\quad\quad\bar{\mathbf{p}}_i := \bar{\mathbf{p}}_i + \hat{\mathbf{p}}_i;\ \
+n_i := n_i + 1
+  &amp;&amp;\quad\textcolor{gray}{\text{\it accumulate point}} \\
+&amp;\quad\text{foreach edge } \hat{\mathbf{e}}_k :
+  &amp;&amp;\quad\textcolor{gray}{\text{\it accumulate boundary points}} \\
+&amp;\quad\quad\hat{\mathbf{m}}_k := \tfrac{1}{2} \hat{\mathbf{p}}_{e_{k, 1}} + \tfrac{1}{2} \hat{\mathbf{p}}_{e_{k,2}}
+  &amp;&amp;\quad\textcolor{gray}{\text{\it compute midpoint}} \\
+&amp;\quad\quad\text{foreach vertex index } v \in \hat{\mathbf{e}}_k :
+  &amp;&amp;\quad\textcolor{gray}{\text{\it accumulate midpoint}} \\
+&amp;\quad\quad\quad\text{if not is\_boundary}(\bar{\mathbf{p}}_v): \text{skip}
+  &amp;&amp;\quad\textcolor{gray}{\text{\it skip non-boundary points}} \\
+&amp;\quad\quad\quad\bar{\mathbf{p}}_v := \bar{\mathbf{p}}_v + \hat{\mathbf{m}}_k;\ \
+n_v := n_v + 1
+  &amp;&amp;\quad\textcolor{gray}{\text{\it accumulate midpoint}} \\
+&amp;\quad\text{foreach quad } \hat{\mathbf{q}}_j :
+  &amp;&amp;\quad\textcolor{gray}{\text{\it accumulate interior points}} \\
+&amp;\quad\quad\hat{\mathbf{c}}_j := \tfrac{1}{4} \hat{\mathbf{p}}_{q_{j, 1}} + \tfrac{1}{4} \hat{\mathbf{p}}_{q_{j,2}} + \tfrac{1}{4} \hat{\mathbf{p}}_{q_{j, 3}} + \tfrac{1}{4} \hat{\mathbf{p}}_{q_{j,4}}
+  &amp;&amp;\quad\textcolor{gray}{\text{\it compute centroid}} \\
+&amp;\quad\quad\text{foreach vertex index } v \in \hat{\mathbf{q}}_j :
+  &amp;&amp;\quad\textcolor{gray}{\text{\it accumulate centroid}} \\
+&amp;\quad\quad\quad\text{if not is\_interior}(\bar{\mathbf{p}}_v): \text{skip}
+  &amp;&amp;\quad\textcolor{gray}{\text{\it skip non-interior points}} \\
+&amp;\quad\quad\quad\bar{\mathbf{p}}_v := \bar{\mathbf{p}}_v + \hat{\mathbf{c}}_j;\ \
+n_v := n_v + 1
+  &amp;&amp;\quad\textcolor{gray}{\text{\it accumulate centroid}} \\
+&amp;\quad\text{foreach point } \bar{\mathbf{p}}_i : \bar{\mathbf{p}}_i := \bar{\mathbf{p}}_i / n_i
+  &amp;&amp;\quad\textcolor{gray}{\text{\it normalize points}} \\
+&amp;\quad\text{foreach point } \bar{\mathbf{p}}_i \text{ if is\_interior}(\bar{\mathbf{p}}_i):
+  &amp;&amp;\quad\textcolor{gray}{\text{\it interior points correction}} \\
+&amp;\quad\quad \bar{\mathbf{p}}_i := 4 /n_i \bar{\mathbf{p}}_i + (1-4/n_i) \hat{\mathbf{p}}_i
+  &amp;&amp;\quad\textcolor{gray}{\text{\it apply correction}} \\
+&amp;\quad\text{return } \hat{\mathbf{q}}, \bar{\mathbf{p}} \\
+\end{alignedat}
+\]</div>
+<p>The implementation reported here is quite comprehensive, but it is not the most
+efficient. Still, we can use to generate subdivision surfaces for rendering, as
+shown in <a href="#subsurf_monkey">Figure 6.36</a>.</p>
+<p><img alt="subsurf_monkey" id="subsurf_monkey" src="images/06_modeling/subsurf_monkey.png"><br>
+Figure 6.36. Subdivision surfaces rendered as control mesh, faceted surface and
+smoothed surface.</p>
+<p>The implementation we presented also supports texture coordinates generation. In
+general, textured meshes have discontinuities in the mapping function. In
+indexed meshes this is represented by duplicating vertices along texture seams.
+This duplication though cannot be used in subdivision surfaces, since it would
+introduce cracks in the surface. Instead, we store different quad indices for
+positions and texture coordinates. In this manner, we can represent
+discontinuities in one value but not in the other. When performing subdivision,
+we subdivide each quantity separately with the same algorithm shown above. This
+is illustrated in <a href="#subsurf_textures">Figure 6.37</a> and shown for rendering in
+<a href="#subsurf_cow">Figure 6.38</a>.</p>
+<p><img alt="subsurf_textures" id="subsurf_textures" src="diagrams/06_modeling/subsurf_textures.png"><br>
+Figure 6.37. A subdivision surface with texture coordinates. To handle texture
+discontinuities, we store and subdivide a separate mesh that has texture
+coordinates as vertices and quads that represent discontinuities in the texture
+mapping function.</p>
+<p><img alt="subsurf_cow" id="subsurf_cow" src="images/06_modeling/subsurf_cow.png"><br>
+Figure 6.38. A subdivision surface with texture coordinates. Model courtesy of
+<a href="https://www.cs.cmu.edu/~kmcrane/">Keenan Crane</a>.</p>
+<h2>6.13. Displacement and Normal Mapping (*)</h2>
+<p>The smooth surface formulations we have introduced so far have many benefits in
+modeling applications, but produce surfaces that appear not realistic since they
+lack small geometric details such as scratches, crevices, wrinkles, etc. In a
+way, this is the same concern we had for surface materials when we introduced
+textures.</p>
+<p>One possibility we have is to use a <em>displacement</em> texture to perturb the
+position of the subdivided vertices. The value stored in the texture represent
+the height with which we have to translate a vertex along its normal. An image
+rendered with displacement mapping is shown in
+<a href="#perturb_displacement">Figure 6.39</a>. If we indicate with <span class="arithmatex">\(H\)</span> a gray-scale
+displacement texture, and with <span class="arithmatex">\(\mathbf{s}\)</span> the texture coordinates, we can
+write the displaced positions as</p>
+<div class="arithmatex">\[
+\mathbf{p}^d(\mathbf{s}) = \mathbf{p}(\mathbf{s}) + H(\mathbf{s}) \mathbf{n}(\mathbf{s})
+\]</div>
+<p>For shading computation, we need to evaluate the normal of the displaced
+surface. We can do so by deriving the displaced position with respect to the
+texture parameters, and normalizing the resulting vector. This derivation allows
+us to write the displaced normal as perturbation of the surface normal expressed
+in the tangent frame
+<span class="arithmatex">\(\mathbf{F}=[\mathbf{t}_1, \mathbf{t}_2, \mathbf{n}, \mathbf{p}]\)</span> at
+<span class="arithmatex">\(\mathbf{p}\)</span>. The tangent frame is a frame centered at the surface point, and
+whose orientation is specified by the tangents <span class="arithmatex">\(\mathbf{t}_1\)</span> and <span class="arithmatex">\(\mathbf{t}_2\)</span>
+and the surface normal <span class="arithmatex">\(\mathbf{n}\)</span>. The tangents are the derivatives of the
+surface position with respect to the two texture coordinates. Their use aligns
+the tangent frame to the orientation of the texture image at the shading
+location. With this notation, we can write the displaced position as</p>
+<div class="arithmatex">\[
+\mathbf{n}^d(\mathbf{s}) \propto
+\frac{\partial \mathbf{p}^d}{\partial s_1} \times \frac{\partial \mathbf{p}^d}{\partial s_2} \approx
+\mathbf{F}(\mathbf{s}) \cdot \left[ -\frac{\partial H}{\partial s_1}, -\frac{\partial H}{\partial s_2}, 1 \right]^T \qquad
+\mathbf{F}(\mathbf{s})=[\mathbf{t}_1, \mathbf{t}_2, \mathbf{n}, \mathbf{p}]
+\]</div>
+<p><img alt="perturb_displacement" id="perturb_displacement" src="images/06_modeling/perturb_displacement.png"><br>
+Figure 6.39. We add geometric details to a smooth surface (left) by translating
+each vertex along the corresponding normal by a quantity stored in a texture
+called displacement map (middle). The resulting surface (right) has finer
+geometric details that affect the look of the shaded surface, its shadowing and
+its silhouette.</p>
+<p>One concern that arises with displacement mapping is that many small primitives
+are added to get fine details. This increase in geometric complexity may be
+problematic if we desire fast rendering times. In fact, this is the very reason
+why we introduced textures in the first place. For these reasons, many real-time
+applications use textures that perturb just the surface normals, without
+changing the surface geometry. In this manner, fine shading details are
+represented, since shading depends on the normal direction, without the need to
+generate many small faces. The drawback of normal mapping is that details are
+still missing in the objects silhouette and the surface shadows, but this may be
+acceptable for certain applications. The most commonly used method to perturb
+normals is <em>normal mapping</em>. Normal maps are textures that store the
+perturbation of the normal in the tangent frame of the shaded point. An image
+rendered with normal mapping is shown in <a href="#perturb_normalmap">Figure 6.40</a>. If
+we write with <span class="arithmatex">\(\mathbf{N}\)</span> the normal map, we can write the perturbed normals as</p>
+<div class="arithmatex">\[
+\mathbf{n}^n(\mathbf{s}) = \mathbf{F}(\mathbf{s}) \cdot \mathbf{N}(\mathbf{s})
+\]</div>
+<p><img alt="perturb_normalmap" id="perturb_normalmap" src="images/06_modeling/perturb_normalmap.png"><br>
+Figure 6.40. We add shading details to a smooth surface (left) by perturbing the
+surface normal by a vector stored in a texture called normal map (middle). The
+resulting surface (right) has finer shading details, but lack geometric details
+in shadows and silhouette.</p>
+<p>For indexed meshes, we can compute the displaced position one vertex at a time
+by simply shifting each vertex along its normal, where the displacement map is
+looked up at the vertex texture coordinates, as
+<span class="arithmatex">\(\mathbf{p}^d_i = \mathbf{p}_i + H(\mathbf{s}_i) \mathbf{n}_i\)</span>. Displaced
+normals can be computed by discretizing the normal computation written above, or
+by computing the smoothed normals for the whole displaced surface by averaging
+the face normals of the subdivided mesh.</p>
+<p>For normal mapping, we need to compute the tangent frame at each shaded point.
+In the case of triangle meshes, we can compute the tangent frame by using the
+triangle edges as the two tangent vectors. The normal is then the cross product
+of the two edges. The shading normal is than computed by looking up the normal
+map at the texture coordinates of the shaded point, and transforming the normal
+to the world coordinate frame. To do so, we first drive the tangents that align
+the local point to the texture image, by writing the points on a triangle
+<span class="arithmatex">\(\mathbf{p}(\mathbf{s})\)</span> in terms of one of its vertices <span class="arithmatex">\(\mathbf{p}_0\)</span>, its
+texture coordinates <span class="arithmatex">\(\mathbf{s}_0\)</span>, and the two unknown tangents
+<span class="arithmatex">\(\tilde{\mathbf{t}}_1\)</span> and <span class="arithmatex">\(\tilde{\mathbf{t}}_2\)</span> as</p>
+<div class="arithmatex">\[
+\mathbf{p}(\mathbf{s}) = \mathbf{p}_0 + (s_1-s_{0,1}) \tilde{\mathbf{t}}_1 + (s_2-s_{0,2}) \tilde{\mathbf{t}}_2
+\]</div>
+<p>We now impose the constraints that the other two triangle vertices,
+<span class="arithmatex">\(\mathbf{p}_1\)</span> and <span class="arithmatex">\(\mathbf{p}_2\)</span>, can be written with respect to their texture
+coordinates, <span class="arithmatex">\(\mathbf{s}_1\)</span> and <span class="arithmatex">\(\mathbf{s}_2\)</span>, as</p>
+<div class="arithmatex">\[
+\begin{cases}
+\mathbf{p}(\mathbf{s}_1) = \mathbf{p}_1 \\
+\mathbf{p}(\mathbf{s}_2) = \mathbf{p}_2 \\
+\end{cases}
+\Rightarrow
+\begin{cases}
+\mathbf{p}_0 + (s_{1,1}-s_{0,1}) \tilde{\mathbf{t}}_1 + (s_{1,1}-s_{0,2}) \tilde{\mathbf{t}}_2 = \mathbf{p}_1 \\
+\mathbf{p}_0 + (s_{2,1}-s_{0,1}) \tilde{\mathbf{t}}_1 + (s_{2,1}-s_{0,2}) \tilde{\mathbf{t}}_2 = \mathbf{p}_2 \\
+\end{cases}
+\]</div>
+<p>This is a linear system of six equations, since we have two vector equations, in
+six unknowns, the coordinates of the two tangent vectors. We can rewrite this in
+matrix notation as</p>
+<div class="arithmatex">\[
+\begin{gathered}
+\begin{bmatrix} \mathbf{e}_1 &amp; \mathbf{e}_2 \end{bmatrix} =
+\begin{bmatrix} \tilde{\mathbf{t}}_1 &amp; \tilde{\mathbf{t}}_2 \end{bmatrix} \cdot
+\begin{bmatrix} \mathbf{r}_1 &amp; \mathbf{r}_2 \end{bmatrix}
+\Rightarrow
+\begin{bmatrix} \tilde{\mathbf{t}}_1 &amp; \tilde{\mathbf{t}}_2 \end{bmatrix} =
+\begin{bmatrix} \mathbf{r}_1 &amp; \mathbf{r}_2 \end{bmatrix}^{-1} \cdot
+\begin{bmatrix} \mathbf{e}_1 &amp; \mathbf{e}_2 \end{bmatrix}
+\Rightarrow \\
+\begin{bmatrix} \tilde{\mathbf{t}}_1 &amp; \tilde{\mathbf{t}}_2 \end{bmatrix} =
+\left(
+  \frac{1}{r_{1,1} r_{2,2} - r_{2,1} r_{1,2}}
+  \begin{bmatrix}r_{2,2} &amp; -r_{2,1} \\ -r_{1,2} &amp; r_{1,1} \end{bmatrix}
+\right) \cdot
+\begin{bmatrix} \mathbf{e}_1 &amp; \mathbf{e}_2 \end{bmatrix} \\
+\mathbf{e}_1 = \mathbf{p}_1 - \mathbf{p}_0 \qquad
+\mathbf{e}_2 = \mathbf{p}_2 - \mathbf{p}_0 \qquad
+\mathbf{r}_1 = \mathbf{s}_1 - \mathbf{s}_0 \qquad
+\mathbf{r}_2 = \mathbf{s}_2 - \mathbf{s}_0 \qquad
+\end{gathered}
+\]</div>
+<p>The tangents derived in this manner are not orthogonal to each other nor to the
+surface normal, since their directions depend on the texture coordinates which
+are independent of each other and of the vertex positions and normals. To treat
+it as a frame, we need to define two orthogonal axes from these tangents. We set
+the first axis as one tangent made orthogonal to the normal, and the second axis
+as the cross product between the first axis and the normal, but with the sign
+determined by the second tangent.</p>
+<div class="arithmatex">\[
+\mathbf{t}_1 = \frac{\tilde{\mathbf{t}}_1 - (\tilde{\mathbf{t}}_1 \cdot \mathbf{n}) \mathbf{n}}{\|\tilde{\mathbf{t}}_1 - (\tilde{\mathbf{t}}_1 \cdot \mathbf{n}) \mathbf{n}\|} \qquad
+\mathbf{t}_2 = \mathbf{t}_1 \times \mathbf{n}
+\]</div>
+<h2>6.14. Implicit Curves and Surfaces (*)</h2>
+<p>The representations of curves and surfaces we have introduced so far are in the
+family of <em>explicit</em> representations, since they define shapes by explicitly
+writing the positions of each point, guided by a set of control points. A less
+used representations for curves and surfaces are <em>implicit</em> representations. In
+these representations, we write closed curves <span class="arithmatex">\(\mathcal{C}\)</span> in two dimensions
+and closed surfaces <span class="arithmatex">\(\mathcal{S}\)</span> in three dimensions as the points for a which
+a <span class="arithmatex">\(f\)</span> is zero. This set of points is called the zero level set of the function.
+In implicit representations, shape points are not written directly, but need to
+be determined by solving the previous equation. We can write implicit curves and
+surfaces as</p>
+<div class="arithmatex">\[
+\mathcal{C} = \{ \mathbf{p} \in \mathbb{R}^2 : f(\mathbf{p}) = 0 \} \qquad
+\mathcal{S} = \{ \mathbf{p} \in \mathbb{R}^3 : f(\mathbf{p}) = 0 \}
+\]</div>
+<p>Implicit representations are sometimes used in modeling applications since they
+make it easy to construct complex shapes by combining simpler ones, and since
+they in these representation curves and surfaces are always well-formed. This is
+in contrast with explicit representation, where control points need to be
+carefully chosen to ensure that the resulting shapes are valid. At the same
+time, implicit representations are less suited to model deformations since we
+cannot directly alter the surface, as we would do by changing the control points
+of an explicit representation. Since most properties of implicit representations
+works in the same manner for curves and surfaces, we will focus on surfaces in
+the following presentation.</p>
+<p>A useful implicit representation is the <em>signed distance function</em> of a shape,
+written as SDF for short. The signed distance function <span class="arithmatex">\(s(\mathbf{p})\)</span> is the
+signed distance of a point <span class="arithmatex">\(\mathbf{p}\)</span> from the closest point on the shape,
+where the sign indicates whether the point is inside or outside the shape. We
+can write this succintly as</p>
+<div class="arithmatex">\[
+s(\mathbf{p}) = \begin{cases}
+\text{positive} &amp; \text{if } \mathbf{p} \text{ is outside the shape} \\
+\text{zero} &amp; \text{if } \mathbf{p} \text{ is on the shape} \\
+\text{negative} &amp; \text{if } \mathbf{p} \text{ is inside the shape} \\
+\end{cases}
+\]</div>
+<p>Signed distance functions can be computed analytically for many shapes, as shown
+in <a href="#sdf_shapes">Figure 6.41</a>. Inigo Quilez keeps a list of analytic SDFs for
+<a href="https://iquilezles.org/articles/distfunctions2d/">two-dimensional</a> and
+<a href="https://iquilezles.org/articles/distfunctions/">three-dimensional</a> shapes. For
+example, the SDF for a circle of radius <span class="arithmatex">\(r\)</span> centered at <span class="arithmatex">\(\mathbf{c}\)</span> can be
+written as <span class="arithmatex">\(s_\text{circle}(\mathbf{p}) = \|\mathbf{p} - \mathbf{c}\| - r\)</span>.</p>
+<p><img alt="sdf_shapes" id="sdf_shapes" src="diagrams/06_modeling/sdf_shapes.png"><br>
+Figure 6.41. Example of analytic signed distance functions.</p>
+<p>One of the main advantages of signed distance functions is that boolean
+operations between shapes can be computed by combining the signed distance
+functions of the shapes. In particular, the signed distance functions of the
+union, intersection and difference of two shapes, shown in
+<a href="#sdf_booleans">Figure 6.42</a>, can be computed as</p>
+<div class="arithmatex">\[
+\begin{aligned}
+s_\text{union}(\mathbf{p}) &amp;= \min(s_1(\mathbf{p}), s_2(\mathbf{p})) \\
+s_\text{intersection}(\mathbf{p}) &amp;= \max(s_1(\mathbf{p}), s_2(\mathbf{p}))  \\
+s_\text{difference}(\mathbf{p}) &amp;= \max(s_1(\mathbf{p}), -s_2(\mathbf{p})) \\
+\end{aligned}
+\]</div>
+<p><img alt="sdf_booleans" id="sdf_booleans" src="diagrams/06_modeling/sdf_booleans.png"><br>
+Figure 6.42. Signed distance functions for boolean operations.</p>
+<p>In many situations, a designer might want to merge shapes together with smoother
+transitions. This can be achieved by changing the boolean operations above with
+smooth minimum and maximum functions, as shown in
+<a href="#sdf_softbooleans">Figure 6.43</a>. These functions are just one possible choice,
+and other functions can be used to achieve different effects. The smooth minimum
+and maximum functions are defined as</p>
+<div class="arithmatex">\[
+\text{smin}(a, b, k) = -\frac{\log(e^{-k a} + e^{-k b})}{k} \qquad
+\text{smax}(a, b, k) = \frac{\log(e^{k a} + e^{k b})}{k}
+\]</div>
+<p><img alt="sdf_softbooleans" id="sdf_softbooleans" src="diagrams/06_modeling/sdf_softbooleans.png"><br>
+Figure 6.43. Signed distance functions for boolean operations with smooth
+transitions.</p>
+<p>The ability to easily combine shapes with boolean operations and smooth
+transitions makes signed distance functions helpful in procedural modeling,
+where shapes are specified by writing programs, as well as in modeling
+applications for novice users, where shapes can be quickly prototyped with
+simple user interfaces. Performing boolean operations on meshes is a much more
+complex task, and still an open area of research.</p>
+<p>When rendering shapes defined by signed distance functions, we first convert
+them to polygonal meshes. This is done by sampling the SDF on a regular grid,
+and generating a mesh that approximates the zero level set of the SDF. There are
+several methods to do so, including <em>marching cubes</em> and <em>dual contouring</em>.
+These methods differs in the assumptions they make on the reconstructed surface,
+and in the quality of the resulting mesh. Covering these methods is beyond the
+scope of this book, but we refer the interested reader to the original papers.</p>
+<p>An alternative rendering method is to raytrace signed distance functions
+directly. We can pose this problem as a root finding problem, where we want to
+find the smallest ray parameter <span class="arithmatex">\(t\)</span> such that the ray point
+<span class="arithmatex">\(\mathbf{p}(t) = \mathbf{e} + t \mathbf{d}\)</span> is on the surface. We can test
+whether a point is on the surface by checking whether the signed distance
+function is zero, <span class="arithmatex">\(s(\mathbf{p}(t)) = 0\)</span>. In short, we can write</p>
+<div class="arithmatex">\[
+\text{intersect\_sdf}(\mathbf{e}, \mathbf{d}, f) =
+  \underset{t \in [t_{min}, t_{max}]}{\text{argmin}} \{ t \mid f(\mathbf{e} + t\mathbf{d}) = 0 \}
+\]</div>
+<p>For simple analytic SDF, we can solve this problem analytically by substituting
+the ray equation into the SDF, and solving for <span class="arithmatex">\(t\)</span>. For more complex SDFs, an
+analytical solution may not be available, and we need to resort to numerical
+methods. The easiest method to implement is <em>ray marching</em>, where we sample the
+ray at regular intervals, and stop when the SDF changes sign. This is shown in
+<a href="#sdf_raymarch">Figure 6.44</a>, and sketched in pseudo-code as</p>
+<div class="arithmatex">\[
+\begin{alignedat}{2}
+&amp; \text{function } \text{intersect\_raymarch}(\mathbf{e}, \mathbf{d}, f) \rightarrow t: \\
+&amp;\quad t := t_{min} &amp;&amp;\quad\textcolor{gray}{\text{\it initialize ray parameter}} \\
+&amp;\quad\text{while } t &lt; t_{max} \text{ and } f(\mathbf{e} + t\mathbf{d}) &gt; 0: &amp;&amp;\quad\textcolor{gray}{\text{\it ray march}} \\
+&amp;\quad\quad t := t + \Delta t &amp;&amp;\quad\textcolor{gray}{\text{\it increment ray parameter}} \\
+&amp;\quad\text{return } t \\
+\end{alignedat}
+\]</div>
+<p><img alt="sdf_raymarch" id="sdf_raymarch" src="diagrams/06_modeling/sdf_raymarch.png"><br>
+Figure 6.44. Ray marching a signed distance function.</p>
+<p>Ray marching is easy to implement, but it is not very efficient. In fact, it
+requires a large number of samples to get a good approximation of the surface,
+and it is not guaranteed to converge to the correct solution. These issues stems
+from the fact that we use a constant <span class="arithmatex">\(\Delta t\)</span> to increment the ray parameter.
+A better alternative is <em>sphere tracing</em>, where we use the SDF to estimate the
+distance to the surface, and use this estimate to increment the ray parameter.
+This is shown in <a href="#sdf_spheretrace">Figure 6.45</a>, and sketched in pseudo-code as</p>
+<div class="arithmatex">\[
+\begin{alignedat}{2}
+&amp; \text{function } \text{intersect\_spheretrace}(\mathbf{e}, \mathbf{d}, f) \rightarrow t: \\
+&amp;\quad t := t_{min} &amp;&amp;\quad\textcolor{gray}{\text{\it initialize ray parameter}} \\
+&amp;\quad\text{while } t &lt; t_{max} \text{ and } f(\mathbf{e} + t\mathbf{d}) &gt; \epsilon: &amp;&amp;\quad\textcolor{gray}{\text{\it sphere trace}} \\
+&amp;\quad\quad t := t + f(\mathbf{e} + t\mathbf{d}) &amp;&amp;\quad\textcolor{gray}{\text{\it increment ray parameter}} \\
+&amp;\quad\text{return } t \\
+\end{alignedat}
+\]</div>
+<p><img alt="sdf_spheretrace" id="sdf_spheretrace" src="diagrams/06_modeling/sdf_spheretrace.png"><br>
+Figure 6.45. Sphere tracing a signed distance function.</p>
+<h2>6.15. Noise Functions (*)</h2>
+<p>In the previous sections we have introduced methods to perturb a smooth surface
+via displacement and normal mapping, as well as the basic primitives used in
+procedural modeling. In these cases, we often want to add small perturbations to
+a surface to make it look more realistic, approximating the small geometric
+details that are present in real-world objects. If measured surfaces are not
+available, we can use <em>noise functions</em> to generate these small perturbations.
+Noise functions are functions that generate patterns that appear stochastic, but
+are reproducible so that they can be applied to a surface and produce the same
+result each time. We present noise functions following the
+<a href="http://eastfarthing.com/blog/2015-04-21-noise/">presentation</a> by Andrew
+Kensler.</p>
+<p>The stochastic appearance of noise functions is achieved by taking a set of
+random values <span class="arithmatex">\(\mathbf{h}_\mathbf{i}\)</span>, defined over the integer lattice
+<span class="arithmatex">\(\mathbf{i} \in \mathbb{Z}^3\)</span>, and interpolating these values to produce a
+smooth function. The random values are generally defined as a <em>hash function</em>
+<span class="arithmatex">\(\mathbf{h}(\mathbf{i})\)</span> of the integer coordinates <span class="arithmatex">\(\mathbf{i}\)</span>, which maps
+each point in space to a random value. If the hash function produces
+well-distributed values, then the noise function will appear stochastic.</p>
+<p>The simplest noise function is <em>value noise</em>, which is defined as the
+discrete-continuos convolution of the random values <span class="arithmatex">\(\mathbf{h}_\mathbf{i}\)</span> with
+a smooth kernel <span class="arithmatex">\(g(\mathbf{p})\)</span>. <a href="#noise_value">Figure 6.46</a> shows the kernel
+function, random values and the resulting value noise function. The value noise
+function is written as</p>
+<div class="arithmatex">\[
+\text{noise}_\text{value}(\mathbf{u}) = \sum\nolimits_{\mathbf{i} \in \mathbb{Z}^3} \mathbf{h}_\mathbf{i} g(\mathbf{u} - \mathbf{i})
+\]</div>
+<p>The kernels used in noise functions are symmetric, with
+<span class="arithmatex">\(g(\mathbf{u}) = g(-\mathbf{u})\)</span>, since the resulting patterns should be as
+isotropic as possible. Also, for efficiency reasons, the kernels have limited
+support. For the noise functions discussed in this section, the kernels are zero
+outside a unit interval centered at the origin, a condition we can write as
+<span class="arithmatex">\(g(\mathbf{u}) = 0 \text{ if } \mathbf{u} \notin [-1,1]^n\)</span>. Taking advantage of
+the limited support, we can write the noise function as the sum over the set of
+neighboring integer coordinates
+<span class="arithmatex">\(\mathbf{n}(\mathbf{u}) = [\lfloor \mathbf{u} \rfloor -1, \lfloor \mathbf{u} \rfloor +1]\)</span>
+as</p>
+<div class="arithmatex">\[
+\text{noise}_\text{value}(\mathbf{u}) = \sum\nolimits_{\mathbf{i} \in \mathbf{n}(\mathbf{u})} \mathbf{h}_\mathbf{i} g(\mathbf{u} - \mathbf{i})
+\]</div>
+<p><img alt="noise_value" id="noise_value" src="diagrams/06_modeling/noise_value.png"><br>
+Figure 6.46. Value noise with kernel and random values.</p>
+<p>The kernel is often written as the product <span class="arithmatex">\(g(\mathbf{u})=\prod_i g(u_i)\)</span> of
+one-dimensional functions <span class="arithmatex">\(g(u)\)</span>. The most common choice for <span class="arithmatex">\(g(u)\)</span> is a cubic
+polynomial <span class="arithmatex">\(g(u)=1-(3|u|^2-2|u|^3)\)</span> with <span class="arithmatex">\(u \in [-1,1]\)</span>, derived from the
+smoothstep function <span class="arithmatex">\(s(u) = 3 u^2 - 2 u^3\)</span>, as <span class="arithmatex">\(g(u) = s(1 - |u|)\)</span>. The
+smoothstep <span class="arithmatex">\(s(u) = 3 u^2 - 2 u^3\)</span> with <span class="arithmatex">\(u \in [0, 1]\)</span> is a cubic polynomial
+often used in procedural modeling to provide a smooth transition between two
+values. An alternative is to use a quintic polynomial <span class="arithmatex">\(s(u)=6u^5-15u^4+10u^3\)</span>
+that has continuous second derivatives. <a href="#noise_kernels">Figure 6.47</a> plots the
+kernel functions, that we summarize as</p>
+<div class="arithmatex">\[
+g(\mathbf{u}) = \prod\nolimits_i s(1 - |u_i|) \qquad
+\begin{array}{ll}
+s(u) = 3 u^2 - 2 u^3 &amp; \text{cubic} \\
+s(u)=6u^5-15u^4+10u^3 &amp; \text{quintic}
+\end{array}
+\]</div>
+<p><img alt="noise_kernels" id="noise_kernels" src="diagrams/06_modeling/noise_kernels.png"><br>
+Figure 6.47. Kernel functions used in value noise.</p>
+<p>Value noise is not used often since the variations in the random values
+<span class="arithmatex">\(\mathbf{h}_\mathbf{i}\)</span> make the noise function oscillate too rapidly. A better
+alternative is to use <em>gradient noise</em>, which is defined as the
+discrete-continuos convolution of the gradients
+<span class="arithmatex">\(\mathbf{d}_\mathbf{i} \cdot  (\mathbf{u} - \mathbf{i})\)</span> of the random
+directions <span class="arithmatex">\(\mathbf{d}_\mathbf{i}\)</span> with a kernel <span class="arithmatex">\(g(\mathbf{p})\)</span>. To keep the
+noise values in the <span class="arithmatex">\([0,1]\)</span> range, we normalize the gradients by scaling and
+shifting them by one-half. The kernel is the same used in value noise, while the
+random directions are defined as a hash function of the integer coordinates
+<span class="arithmatex">\(\mathbf{i}\)</span>. <a href="#noise_gradient">Figure 6.48</a> shows the kernel function, random
+directions and the resulting gradient noise function.</p>
+<div class="arithmatex">\[
+\text{noise}_\text{gradient}(\mathbf{u}) = \frac{1}{2} + \frac{1}{2} \sum\nolimits_{\mathbf{i} \in \mathbf{n}(\mathbf{u})} (\mathbf{d}_\mathbf{i} \cdot  (\mathbf{u} - \mathbf{i})) g(\mathbf{u} - \mathbf{i})
+\]</div>
+<p><img alt="noise_gradient" id="noise_gradient" src="diagrams/06_modeling/noise_gradient.png"><br>
+Figure 6.48. Gradiance noise with kernel and random directions.</p>
+<p>An improved variant of gradient noise is <em>simplex noise</em> that uses a simplectic
+grid instead of a cubic grid. The simplectic grid is a regular grid where each
+cell is a simplex, i.e. a triangle in two dimensions and a tetrahedron in three
+dimensions. The simplex grid is constructed by taking the integer grid and
+shifting each cell by one-half along each axis.</p>
+<p>Another family of noise functions, called <em>cell noise</em>, is derived by taking the
+distance of the point <span class="arithmatex">\(\mathbf{u}\)</span> from a set of points <span class="arithmatex">\(\mathbf{u}_\mathbf{i}\)</span>,
+one for each integer grid cell <span class="arithmatex">\([\mathbf{i}, \mathbf{i}+1]\)</span> choosen at random
+from a hash function of the integer coordinates <span class="arithmatex">\(\mathbf{i}\)</span>. The cell noise is
+defined as the distance from the closest point. <a href="#noise_cell">Figure 6.49</a> shows
+the grid points and the resulting cell noise functions. We can write the cell
+noise as</p>
+<div class="arithmatex">\[
+\text{noise}_\text{cell}(\mathbf{u}) = \underset{\mathbf{i} \in \mathbf{n}}{\text{argmin}} \| \mathbf{u} - \mathbf{u}_\mathbf{i} \|
+\]</div>
+<p><img alt="noise_cell" id="noise_cell" src="diagrams/06_modeling/noise_cell.png"><br>
+Figure 6.49. Cell noise with grid points.</p>
+<p>The noise functions presented so far can be manipulated to obtain different
+noises. For example, a noise function can be shifted, scaled and rotated by
+transforming the input point <span class="arithmatex">\(\mathbf{u}\)</span> before evaluating the noise function.
+Examples of these transformations are shown in <a href="#noise_transforms">Figure 6.50</a>.</p>
+<p><img alt="noise_transforms" id="noise_transforms" src="diagrams/06_modeling/noise_transforms.png"><br>
+Figure 6.50. Transformations of noise functions.</p>
+<p>Noise functions can be combined to obtain more complex noises. For example, we
+multiple scaled noise functions can be combined to obtain <em>fractal noises</em>,
+where the highest frequency base noises have descreasing amplitudes. Depending
+on how we combine the base noises, we can obtain fractal noises.
+<a href="#noise_fractal">Figure 6.51</a> shows examples of the fractal noises that written
+as</p>
+<div class="arithmatex">\[
+\begin{aligned}
+\text{noise}_\text{fractal}(\mathbf{u}) &amp;= \sum\nolimits_{i=0}^n \frac{\text{noise}(\mathbf{u} \cdot 2^i)}{2^{i+1}} \\
+\text{noise}_\text{turbulence}(\mathbf{u}) &amp;= \sum\nolimits_{i=0}^n \frac{|2 \cdot \text{noise}(\mathbf{u} \cdot 2^i) - 1|}{2^i} \\
+\end{aligned}
+\]</div>
+<p><img alt="noise_fractal" id="noise_fractal" src="diagrams/06_modeling/noise_fractal.png"><br>
+Figure 6.51. Fractal noise and ridge noise.</p>
+<p>The same variations can be applied to cell noise, and in fact many other noise
+functions. <a href="#noise_cfractal">Figure 6.52</a> shows examples of these noises.</p>
+<p><img alt="noise_cfractal" id="noise_cfractal" src="diagrams/06_modeling/noise_cfractal.png"><br>
+Figure 6.52. Fractal variations of cell noise.</p>
+</article>
+<footer>
+  <p>Copyright © 2024 Fabio Pellacini</p>
+</footer>
+</body>
+</html>

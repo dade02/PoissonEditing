@@ -1,0 +1,46 @@
+Progetti per il Corso di Computer Graphics
+Modalità di Svolgimento
+
+    Scegliere uno dei progetti elencati sotto.
+    I progetti sono da svolgersi singolarmente.
+    Il voto del progetto sarà assegnato in base alla qualità dei risultati e alla loro presentazione (immagini e PDF). Nel caso di progetti di sistema, si considererà anche la velocità di esecuzione.
+    È possibile consultare e utlizzare codice trovato online. In questo caso, il codice usato va citato indicandolo nel PDF in modo visibile. Notate però le limitazioni di cui sotto sull'uso del codice.
+
+Modalità di Consegna
+
+    La consegna del progetto deve contenere
+        codice scritto
+        immagini che dimostrano l'algoritmo
+        dati per eseguire i tests
+        un PDF che contiene: (1) nome dell studente, (2) breve descrizione di quello che si è fatto, (3) risultati commentati
+    Il progetto va consegnato su Moodle.
+    Consegnare il progetto almeno 5 giorni prima della data dell'appello, per permettere di formulare un voto.
+    Il voto sarà comunicato durante l'orale.
+
+Materiale
+
+    I progetti possono essere svolti il C++ o Python, o altro linguaggio a scelta. Per ogni progetto, è indicata la fattibilità di ogni lavoro nel linguaggio specifico. Quest'ultima indicazione è da considerarsi un consiglio.
+    Per i progetti in C++, consiglio di usare la libreria [Little/GL](no link) già presente su Moodle;
+        la libreria è disponibile in versione più complessa anche da Yocto/GL dove ne trovate la documentazione.
+    Per i progetti di rendering consiglio di utilizzare
+        [Little/GL](no link) renderer open source che segue il libro del docente
+        Yocto/GL renderer open source più completo del docente
+        Pbrt-v4 renderer open source che segue il libro al link indicato
+    Librerie utili in C++ per manipolazione di immagini:
+        CImg,
+        Piccante.
+    Librerie utili in Python:
+        NumPy,
+        Scipy.
+        Pillow,
+        Scikit-Image.
+        TriMesh,
+        PyTorch.
+    Librerie da non utilizzare in Python:
+        OpenCV.
+
+
+Poisson Image Editing: Python
+
+    Vari programmi permettono di fare blending di immagini senza vedere i bordi.
+    In questo progetto implementiamo Poisson Image Editing

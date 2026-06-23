@@ -1,0 +1,128 @@
+@import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Raleway:ital@0;1&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&display=swap');
+
+body, h1, h2, h3, h4, p, blockquote, code, ul, ol, dl, dd, img, figure, pre {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Crimson Pro", serif;
+  font-size: 20px;
+  line-height: 26px;
+  font-variant-numeric: oldstyle-nums;
+  font-feature-settings: "onum" 1;
+  font-variant-ligatures: common-ligatures;
+  margin: 0 auto;
+  text-justify:inter-word
+}
+
+header {
+  font-family: "Raleway", sans-serif;
+  font-size: 18px;
+  max-width: 768px;
+  margin: 48px auto 144px;
+  text-align: left;
+}
+
+footer {
+  font-family: "Raleway", sans-serif;
+  font-size: 18px;
+  max-width: 768px;
+  margin: 144px auto 48px;
+  text-align: right;
+}
+
+article {
+  max-width: 768px;
+  margin: 0 auto; 
+}
+
+p {
+  margin: 24px 24px;
+  text-align: justify; 
+}
+
+h1, h2, h3 {
+  font-family: "Raleway", sans-serif;
+  font-weight: normal;
+}
+
+h1 {
+  font-size: 42px;
+  line-height: 54px;
+  margin: 144px 0 72px;
+  padding: 24px;
+  background-color: red;
+  color: white;
+}
+
+h2 {
+  font-size: 28px;
+  margin: 96px 0 48px; 
+  padding: 24px;
+  background-color: red;
+  color: white;
+}
+
+ul {
+  margin: 24px 24px;
+  padding: 0 24px;
+}
+
+ol {
+  margin: 24px 24px;
+  padding: 0 24px;
+}
+
+.math {
+  font-size: 20px;
+}
+
+code {
+  font-family: "Fira Code", monospace;
+  font-size: 14px;
+}
+
+pre {
+  margin: 24px 24px;
+  padding: 12px;
+  line-height: 22px;
+  word-wrap: break-word;
+  white-space: pre-wrap; 
+}
+
+figure {
+  margin: 24px 24px;
+  text-align: center; 
+}
+
+figcaption {
+  margin-top: 6px;
+  text-align: left;
+  font-style: italic;
+}
+
+img {
+  display: inline-block;
+  max-width: 100%;
+}
+
+p:has(img) {
+  font-style: italic;
+  margin: 24px 0;
+  padding: 12px 24px;
+  border-left: 4px solid red;
+}
+
+a {
+  color: black;
+}
+
+.version {
+  font-size: 14px;
+  float: right;
+  text-align: right;
+}

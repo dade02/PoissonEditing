@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <link rel="stylesheet" href="style/style.css">
+  <link rel="stylesheet" href="style/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+  <script>
+  MathJax.Hub.Config({
+      TeX: {
+        Macros: {
+          mat: ["{\\begin{bmatrix} #1 \\end{bmatrix}}", 1],
+          bb: ["{\\mathbf{ #1 }}", 1],
+        }
+      }
+    });
+  </script>
+</head>
+<body>
+<header>
+  <p><a href="00_title.html">The Little Book of Computer Graphics</a> <span class="version">v 0.0.1</span></p>
+</header>
+<article>
+<h1>7. Animation and Simulation</h1>
+<p>In the previous chapters, we discussed how to represent and manipulate virtual
+environments, and how to compute images from them. In this chapter, we will
+review the basic method used to represent and simulate the motion and
+deformation of objects in virtual environments.</p>
+<h2>7.1. Videos</h2>
+<p>We can think of a video as a function <span class="arithmatex">\(\mathbf{I}(t)\)</span> that returns an image
+<span class="arithmatex">\(\mathbf{I}\)</span> for any time <span class="arithmatex">\(t\)</span>. To treat videos in a practical manner, we need to
+discretize this function, just like we discretize images. A discretize video is
+a sequence of images <span class="arithmatex">\(\mathbf{I}_{t_i}\)</span>, often called <em>frames</em>. The <em>frame rate</em>
+of a video is the number of images reproduced per second, which is the inverse
+of the time between two consecutive frames. Just like any other discretization
+we saw, the higher the frame rate, the better the approximation of the original
+video, but the higher the storage and computational requirements. An example of
+a sequence of images and the corresponding video is shown in
+<a href="#video_frames">Figure 7.1</a> and <a href="#video_video">Figure 7.2</a>.</p>
+<p><img alt="video_frames" id="video_frames" src="https://upload.wikimedia.org/wikipedia/commons/4/4a/Muybridge_race_horse_gallop.jpg"><br>
+Figure 7.1. Example of video frames. Source:
+<a href="https://commons.wikimedia.org/wiki/File:Muybridge_race_horse_gallop.jpg">Wikimedia</a>.</p>
+<p><img alt="video_video" id="video_video" src="https://upload.wikimedia.org/wikipedia/commons/d/dd/Muybridge_race_horse_animated.gif"><br>
+Figure 7.2. Example of video frames displayed one after the other. Source:
+<a href="https://en.wikipedia.org/wiki/File:Muybridge_race_horse_animated.gif">Wikimedia</a>.</p>
+<p>When choosing the frame rate of a video, we need to consider the limitations of
+the human visual system. The human visual system is not able to perceive the
+difference between a continuous video and a sufficiently high frame rate video.
+The minimum frame rate at which this happens is called the <em>flicker fusion
+threshold</em>. The flicker fusion threshold is not a fixed value, but it depends on
+the content of the frames. For example, the flicker fusion threshold is higher
+for high contrast images than for low contrast ones. For normal viewing content,
+the flicker fusion threshold is roughly 60 frames per second. This is the frame
+rate used for HDTV and 4K video content, and is also the frame rate used by most
+computer monitors. You might have heard that many movies are shot at 24 frames
+per second, which seems significantly lower than the frame rate of HDTV. But in
+fact, movies are then projected at 72 frames per second by repeating each frame
+three times. This is done to avoid flicker which is a side effect of the low
+frame rate.</p>
+<h2>7.2. Keyframe Animation</h2>
+<p>In this book, we are mostly concerned about how to represent motion in three
+dimensional environments. We will start by considering motions that are
+represented explicitly. For lack of a better technical term, we will use the
+term animation to indicate such methods.</p>
+<p>The basic premise of animation methods is to describe changes to a scene at the
+passing of time. In a way, we can think about animation methods as techniques
+that help us defining a function <span class="arithmatex">\(S(t)\)</span> that returns a scene <span class="arithmatex">\(S\)</span> for any given
+time <span class="arithmatex">\(t\)</span>. Any scene property may be altered with time, including all properties
+of cameras, shapes, materials, instances and environments. Both the
+representation of the time-varying properties and its computation and control
+differ significantly depending on the application. For example, a game engine
+handles the control of character motion in a different manner than the software
+used to produce computer animated movies. In this section, we focus on the basic
+ideas that can be combined to define complex animations.</p>
+<p>The first aspect of animation is how to specify objects transformations through
+time. The most commonly-used methods interpolate transformations specified at
+fixed times throughout the timeline. This is sometimes called <em>keyframe
+animation</em>, where the key frames at the times at which the transformations are
+specifies. The simplest interpolation to consider is linear interpolation, where
+the two transformations <span class="arithmatex">\((\mathbf{F}_1, \mathbf{F}_2)\)</span>, defined at the end
+points of a time interval <span class="arithmatex">\([t_1, t_2]\)</span>, are interpolated for all times <span class="arithmatex">\(t\)</span>
+within the interval. We can write this function as</p>
+<div class="arithmatex">\[
+\mathbf{F}(t) = \text{interpolate}(\mathbf{F}_1, \mathbf{F}_2, u) \qquad
+u = \frac{t - t_1}{t_2 - t_1}
+\]</div>
+<p>One possibility to implement this interpolation is to linearly interpolate the
+coefficients of the frame matrices. This would be equivalent to writing
+<span class="arithmatex">\(\mathbf{F}(u) = (1 - u) \mathbf{F}_1 + u \mathbf{F}_2\)</span>. But done this way, we
+would get an interpolated frame that does not represent the intent of the
+keyframed transformations. For example, the linear interpolation of the
+coefficients of two rotations is not a rotation. If the two rotations are around
+the same axis, a better alternative is to interpolate the rotation angle. These
+cases are shown in <a href="#interpolation_matrices">Figure 7.3</a> and
+<a href="#interpolation_angle">Figure 7.4</a>.</p>
+<p><img alt="interpolation_matrices" id="interpolation_matrices" src="diagrams/07_animation/interpolation_matrices.png"><br>
+Figure 7.3. The linear interpolation of the coefficients of two rotation
+matrices is not a rotation. Notice how the shape of the object changes slightly
+in the two middle frames.</p>
+<p><img alt="interpolation_angle" id="interpolation_angle" src="diagrams/07_animation/interpolation_angle.png"><br>
+Figure 7.4. The linear interpolation of the angle of a rotation is a rotation.</p>
+<p>The previous example show that the interpolation of transformations is not
+trivial. Together with computing the per-frame transformations, we also need to
+ensure that the speed and acceleration of the interpolated transformations, i.e.
+the first and second derivatives of <span class="arithmatex">\(\mathbf{F}(t)\)</span>, are consistent with the
+intent of the animation. In this introductory text, we will focus on computing
+correct per-frame transformations.</p>
+<p>For basic transformations, such as translation, rotation and scaling, the
+simplest way to interpolate the transformations is to interpolate the
+transformation parameters, rather than the resulting frames. Using the notation
+defined in the previous chapters, we can write the interpolation of a
+translation as
+<span class="arithmatex">\(\mathbf{F}_{\mathbf{t}_1, \mathbf{t}_2}(u) = [\mathbf{I}, (1-u) \mathbf{t}_1 + u \mathbf{t}_2]\)</span>
+and the interpolation of scaling transformations as
+<span class="arithmatex">\(\mathbf{F}_{\mathbf{s}_1, \mathbf{s}_2}(u) = [\text{diag}((1-u) \mathbf{s}_1 + u \mathbf{s}_2), \mathbf{0}]\)</span>.
+The interpolation of rotations is more complex. If we focus for now on
+interpolating rotations around a fixed axis <span class="arithmatex">\(\mathbf{a}\)</span>, then we can write the
+interpolated rotations as
+<span class="arithmatex">\(\mathbf{F}_{\theta_1, \theta_2}(u) = [\mathbf{R}_\mathbf{a}((1-u) \theta_1 + u \theta_2), \mathbf{0}]\)</span>,
+where <span class="arithmatex">\(\mathbf{R}_\mathbf{a}\)</span> is the rotation matrix around the <span class="arithmatex">\(\mathbf{a}\)</span>
+axis. For combined transformations, we can interpolate the individual components
+separately and then combine the interpolated components. This is illustrated in
+<a href="#interpolation_combined">Figure 7.5</a>.</p>
+<p><img alt="interpolation_combined" id="interpolation_combined" src="diagrams/07_animation/interpolation_combined.png"><br>
+Figure 7.5. Interpolation of combined transformations.</p>
+<p>While we discuss the simplest case of linear interpolation, the most common
+interpolation methods used in animation are splines. We have already seen
+splines in the context of curves and surfaces, and the same ideas can be applied
+to interpolate transformations, so we will not repeat them here.</p>
+<h2>7.3. Interpolation of Rotations</h2>
+<p>So far we have considered rotations around a fixed axis. We will now present the
+generalization to rotations around arbitrary axes, illustrated in
+<a href="#interpolation_axisangle">Figure 7.6</a>. To do so, we are going to introduce some
+notation for rotation that will help us write the interpolation of rotations in
+more concise manner.</p>
+<p>In the previous chapters, we have seen that rotations can be represented as
+either <span class="arithmatex">\(3 \times 3\)</span> rotation matrices <span class="arithmatex">\(\mathbf{R}\)</span> or as axis-angle pairs
+<span class="arithmatex">\((\mathbf{a}, \theta)\)</span>. In order to manipulate these two representations, we
+introduce two functions that convert between them. The <em>exponential map</em> is a
+function that maps an axis-angle pair to a rotation matrix, while the
+<em>logarithmic map</em> is its inverse.</p>
+<p>Given an axis <span class="arithmatex">\(\mathbf{a}\)</span> and an angle <span class="arithmatex">\(\theta\)</span>, the exponential map
+<span class="arithmatex">\(\exp_m(\theta \mathbf{a})\)</span> is the exponential <span class="arithmatex">\(\exp(\theta \mathbf{A}_\times)\)</span>
+of the matrix <span class="arithmatex">\(\theta \mathbf{A}_\times\)</span>. The exponential <span class="arithmatex">\(\exp(\mathbf{M})\)</span> of
+a matrix <span class="arithmatex">\(\mathbf{M}\)</span> is a matrix defined by the Taylor series
+<span class="arithmatex">\(\exp(\mathbf{M}) = \sum\nolimits_{i=0}^\infty (\mathbf{M}^i / i!)\)</span>. The matrix
+<span class="arithmatex">\(\mathbf{A}_\times\)</span> is the cross product matrix of the axis <span class="arithmatex">\(\mathbf{a}\)</span>, that
+is a matrix that multiplied by any vector <span class="arithmatex">\(\mathbf{b}\)</span> gives the cross product
+with <span class="arithmatex">\(\mathbf{a}\)</span> as
+<span class="arithmatex">\(\mathbf{A}_\times \mathbf{b} = \mathbf{a} \times \mathbf{b}\)</span>. The cross product
+matrix can be derived by substitution in the previous identity which results in</p>
+<div class="arithmatex">\[
+\mathbf{A}_\times = \begin{bmatrix}
+0 &amp; -a_z &amp; a_y \\
+a_z &amp; 0 &amp; -a_x \\
+-a_y &amp; a_x &amp; 0
+\end{bmatrix}
+\]</div>
+<p>Using the Taylor series of matrix exponential and the properties of the cross
+product matrix, it can be shown that the exponential
+<span class="arithmatex">\(\exp(\theta \mathbf{A}_\times)\)</span> evaluates to the Rodriguez formula for rotation
+matrices. This equality is the reason why we use matrix exponentiation to treat
+rotations. Putting it all together, we can write the exponential map as</p>
+<div class="arithmatex">\[
+\exp_m(\theta \mathbf{a}) = \exp(\theta \mathbf{A}_\times) = \mathbf{I} + \sin \theta \mathbf{A}_\times + (1 - \cos \theta) \mathbf{A}_\times^2
+\]</div>
+<p>The logarithmic map <span class="arithmatex">\(\log_m(\mathbf{R})\)</span> of a rotation matrix is the inverse of
+the exponential map, namely the product of the axis <span class="arithmatex">\(\mathbf{a}\)</span> and angle
+<span class="arithmatex">\(\theta\)</span>. We can compute the logarithmic map from the matrix logarithm
+<span class="arithmatex">\(\log(\mathbf{R})\)</span> of the rotation matrix that can be written by inverting the
+Rodriguez formula. If we indicate as <span class="arithmatex">\(\text{Tr}(\mathbf{R}) = \sum R_{ii}\)</span> the
+trace of the matrix <span class="arithmatex">\(\mathbf{R}\)</span>, then the logarithm of a rotation matrix
+equates to</p>
+<div class="arithmatex">\[
+\log(\mathbf{R}) = \theta \mathbf{A}_\times \qquad
+\theta = \arccos \left( \frac{\text{Tr}(\mathbf{R}) - 1}{2} \right) \qquad
+\mathbf{A}_\times =  \frac{\mathbf{R} - \mathbf{R}^T}{2 \sin \theta}
+\]</div>
+<p>To compute the logarithmic map <span class="arithmatex">\(\log_m(\mathbf{R})\)</span>, we need to extract the axis
+<span class="arithmatex">\(\mathbf{a}\)</span> from it cross product matrix <span class="arithmatex">\(\mathbf{a}_\times\)</span> in the previous
+equation, that can be done by inspection of the cross product matrix
+coefficients. Putting it all together, we can write the logarithmic map as</p>
+<div class="arithmatex">\[
+\log_m(\mathbf{R}) = \theta \mathbf{a} \qquad
+\theta = \arccos \left( \frac{\text{Tr}(\mathbf{R}) - 1}{2} \right) \qquad
+\mathbf{a} = \frac{1}{2 \sin \theta} \begin{bmatrix}
+R_{2,3} - R_{3,2} \\
+R_{3,1} - R_{1,3} \\
+R_{1,2} - R_{2,1}
+\end{bmatrix}
+\]</div>
+<p>We can now go back to original problem of interpolating rotations. If we
+consider two rotations <span class="arithmatex">\(\mathbf{R}_1\)</span> and <span class="arithmatex">\(\mathbf{R}_2\)</span>, we can write the
+rotation that transforms <span class="arithmatex">\(\mathbf{R}_1\)</span> to <span class="arithmatex">\(\mathbf{R}_2\)</span> by solving the
+equation <span class="arithmatex">\(\mathbf{R}_2 = \mathbf{R}_{1 \rightarrow 2} \mathbf{R}_1\)</span>, that gives
+the rotation matrix
+<span class="arithmatex">\(\mathbf{R}_{1 \rightarrow 2} = \mathbf{R}_2 \mathbf{R}_1^{-1}\)</span>. The logarithmic
+map of this matrix gives us the rotation axis <span class="arithmatex">\(\mathbf{a}_{1 \rightarrow 2}\)</span> and
+angle <span class="arithmatex">\(\theta_{1 \rightarrow 2}\)</span> that bring <span class="arithmatex">\(\mathbf{R}_1\)</span> to <span class="arithmatex">\(\mathbf{R}_2\)</span> as
+<span class="arithmatex">\(\log_m(\mathbf{R}_{1 \rightarrow 2}) = \theta_{1 \rightarrow 2} \mathbf{a}_{1 \rightarrow 2}\)</span>.
+We can compute the intermediate rotations by taking the same axis
+<span class="arithmatex">\(\mathbf{a}_{1 \rightarrow 2}\)</span> but with the intermediate angles
+<span class="arithmatex">\(\theta(u) = u \theta_{1 \rightarrow 2}\)</span>. The final interpolated rotations are
+the product of the exponential map of the axis-angle rotation and the rotation
+<span class="arithmatex">\(\mathbf{R}_1\)</span> written as
+<span class="arithmatex">\(\mathbf{R}(u) = \exp_m(\theta(u) \mathbf{a}_{1 \rightarrow 2}) \mathbf{R}_1\)</span>.
+Note that we do not necessarily need to compute the axis
+<span class="arithmatex">\(\mathbf{a}_{1 \rightarrow 2}\)</span>, since we can just use the corresponding cross
+product matrix, that allows us to use just matrix exponential and logarithm to
+interpolate rotations. The computed interpolation has constant speed and use the
+same axis for all intermediate rotations, which are desired properties when
+interpolating rotations. The interpolated rotations, illustrated in
+<a href="#interpolation_axisangle">Figure 7.6</a>, can be written as</p>
+<div class="arithmatex">\[
+\mathbf{R}(u) = \exp(u \log(\mathbf{R}_2 \mathbf{R}_1^{-1})) \mathbf{R}_1
+\]</div>
+<p><img alt="interpolation_axisangle" id="interpolation_axisangle" src="diagrams/07_animation/interpolation_axisangle.png"><br>
+Figure 7.6. Interpolation of rotations using the exponential map.</p>
+<h2>7.4. Quaternions (*)</h2>
+<p>The procedure we introduced before is complex since we switch between two
+representations during interpolation. We can write the same interpolation with a
+more suitable representation of rotations. The standard tool used in graphics to
+animate rotations is the <em>quaternion</em>. In general, the use of quaternions is
+preferred if we rarely need to use rotation matrices, otherwise the use of
+exponential and logarithmic map is probably easier. Quaternions are themselves
+quite complex, so we restrict here their discussion to the notions needed for
+graphics.</p>
+<p>A quaternion <span class="arithmatex">\(\mathbf{q} \in \mathbb{H}\)</span> is represented by two components, a
+scalar <span class="arithmatex">\(w \in \mathbb{R}\)</span> and a vector <span class="arithmatex">\(\mathbf{v} \in \mathbb{R}^3\)</span>, that we
+write as <span class="arithmatex">\(\mathbf{q} = (w, \mathbf{v})\)</span>. Quaternions are linear quantities with
+the sum and scaling operations written component-wise as</p>
+<div class="arithmatex">\[
+\mathbf{q}_1 + \mathbf{q}_2 = (w_1 + w_2, \mathbf{v}_1 + \mathbf{v}_2) \qquad
+\alpha \mathbf{q} = (\alpha w, \alpha \mathbf{v})
+\]</div>
+<p>For our purposes, the most relevant operation on quaternions is their product</p>
+<div class="arithmatex">\[
+\mathbf{q}_1 \mathbf{q}_2 = (w_1 w_2 - \mathbf{v}_1 \cdot \mathbf{v}_2,
+w_1 \mathbf{v}_2 + w_2 \mathbf{v}_1 + \mathbf{v}_1 \times \mathbf{v}_2)
+\]</div>
+<p>From this definition it is easy to show that the product of two quaternions is
+not commutative, but it is associative. Each quaternion has a conjugate
+<span class="arithmatex">\(\mathbf{q}^*\)</span>, and the product of a quaternion and its conjugate is a scalar
+equal to the square of the quaternion norm, that we write as</p>
+<div class="arithmatex">\[
+\| \mathbf{q} \| = \sqrt{\mathbf{q} \mathbf{q}^*} = \sqrt{w^2 + \mathbf{v} \cdot \mathbf{v}}
+\qquad \mathbf{q}^* = (w, -\mathbf{v})
+\]</div>
+<p>Quaternions are used to represent rotations in three dimensions. More precisely,
+a quaternion of norm one, known as <em>unit quaternion</em>, represents a rotation. And
+in fact, any rotation can be represented as a unit quaternion. We can write the
+quaternion corresponding to the rotation around an axis <span class="arithmatex">\(\mathbf{a}\)</span> by an angle
+<span class="arithmatex">\(\theta\)</span> as</p>
+<div class="arithmatex">\[
+\mathbf{q} = \left( \cos \tfrac{\theta}{2}, \sin \tfrac{\theta}{2} \mathbf{a} \right)
+\]</div>
+<p>The inverse transformation, from a quaternion to an axis-angle rotation, is
+given by</p>
+<div class="arithmatex">\[\mathbf{a} = \mathbf{v}/\| \mathbf{v} \| \qquad \theta = 2 \arctan (\|\mathbf{a}\|,w)\]</div>
+<p>The rotation of a three-dimensional point <span class="arithmatex">\(\mathbf{p}\)</span> by a unit quaternion
+<span class="arithmatex">\(\mathbf{q}\)</span> is given by the product <span class="arithmatex">\(\mathbf{q} \hat{\mathbf{p}} \mathbf{q}^*\)</span>,
+where <span class="arithmatex">\(\hat{\mathbf{p}}\)</span> is the quaternion <span class="arithmatex">\(\hat{\mathbf{p}} = (0, \mathbf{p})\)</span>.
+This is easily shown by substitution with the definition of quaternion product,
+that gives us the Rodrigues formula for rotating a vector around an axis.</p>
+<p>Alternatively, we can write the rotation as a matrix-vector product
+<span class="arithmatex">\(\mathbf{R}(\mathbf{q}) \mathbf{p}\)</span>, where the rotation matrix can be derived by
+the same procedure we use to write the matrix from the axis-angle
+representation. The resulting matrix is given by</p>
+<div class="arithmatex">\[
+\mathbf{R}(\mathbf{q}) = \begin{bmatrix}
+1 - 2 (v_y^2 + v_z^2) &amp; 2 (v_x v_y - w v_z) &amp; 2 (v_x v_z + w v_y) \\
+2 (v_x v_y + w v_z) &amp; 1 - 2 (v_x^2 + v_z^2) &amp; 2 (v_y v_z - w v_x) \\
+2 (v_x v_z - w v_y) &amp; 2 (v_y v_z + w v_x) &amp; 1 - 2 (v_x^2 + v_y^2)
+\end{bmatrix}
+\]</div>
+<p>A benefit of the quaternion representation is that the composition of rotations
+is equivalent to the product of quaternions. We can write this as
+<span class="arithmatex">\(\mathbf{q}_1 \circ \mathbf{q}_2 = \mathbf{q}_1 \mathbf{q}_2\)</span>. From this product
+we can get the combined rotation axis and angle without further computation. The
+equivalence between quaternion product and rotation composition is easily shown
+by substitution since
+<span class="arithmatex">\((\mathbf{q}_1 \mathbf{q}_2) \hat{\mathbf{u}} (\mathbf{q}_1 \mathbf{q}_2)^{-1} =
+\mathbf{q}_1 \mathbf{q}_2 \hat{\mathbf{u}} \mathbf{q}_2^{-1} \mathbf{q}_1^{-1} =
+\mathbf{q}_1 (\mathbf{q}_2 \hat{\mathbf{u}} \mathbf{q}_2^{-1}) \mathbf{q}_1^{-1}\)</span>.</p>
+<p>To compute the interpolation of two rotations, we need to define two further
+operations on unit quaternions, namely their exponential and logarithm. Let us
+first give their definition that can be derived from the Taylor series of the
+exponential. We write the quaternion exponential and logarithm as</p>
+<div class="arithmatex">\[
+\exp(\mathbf{q}) = \exp(w) \left( \cos \| \mathbf{v} \|, \frac{\mathbf{v}}{\| \mathbf{v} \|} \sin \| \mathbf{v} \| \right) \qquad
+\log(\mathbf{q}) = \left( \log \| \mathbf{q} \|, \frac{\mathbf{v}}{\| \mathbf{v} \|} \arccos \left( \frac{w}{\| \mathbf{q} \|} \right) \right)
+\]</div>
+<p>The quaternion power is defined with respect to the quaternion exponential and
+logarithm as <span class="arithmatex">\(\mathbf{q}^u = \exp(u \log(\mathbf{q}))\)</span>.</p>
+<p>The quaternion exponential and logarithm are related to the exponential and
+logarithmic map of rotations. Let us now consider the exponential of the
+quaternion <span class="arithmatex">\((0, \tfrac{\theta}{2} \mathbf{a})\)</span>. From the previous definition, it
+is easy to see that this is just the quaternion corresponding the rotation
+around the axis <span class="arithmatex">\(\mathbf{a}\)</span> by the angle <span class="arithmatex">\(\theta\)</span>. This in turn means that we
+can write the exponential map of a rotation easily as just</p>
+<div class="arithmatex">\[
+\exp_m(\theta \mathbf{a}) = \exp(0, \tfrac{\theta}{2} \mathbf{a}) = (\cos \tfrac{\theta}{2}, \sin \tfrac{\theta}{2} \mathbf{a}) = \mathbf{q}
+\]</div>
+<p>Let us now consider the special case of the logarithm of a unit quaternion
+representing a rotation. In this case, the quaternion norm is one and the <span class="arithmatex">\(w\)</span>
+component is the cosine of half the angle of rotation. With these observations,
+we can simplify the logarithm of a unit quaternion as
+<span class="arithmatex">\(( 0, \tfrac{\theta}{2} \mathbf{a})\)</span>. From this observation, it is easy to show
+that the logarithmic map of a unit quaternion can be written as</p>
+<div class="arithmatex">\[
+\log(\mathbf{q}) = \left( 0, \tfrac{\theta}{2} \mathbf{a} \right) \qquad
+\log_m(\mathbf{q}) = \theta \mathbf{a} \qquad
+\theta = 2 \arccos w \qquad
+\mathbf{a} = \frac{\mathbf{v}}{\| \mathbf{v} \|}
+\]</div>
+<p>From the definition of the logarithmic map and the quaternion power, it follows
+that raising a unit quaternion to the power <span class="arithmatex">\(u\)</span> is equivalent to rotating around
+the same axis by the angle <span class="arithmatex">\(u \theta\)</span> since</p>
+<div class="arithmatex">\[
+\mathbf{q}^u = \exp(u \log(\mathbf{q})) = \exp(0, u \tfrac{\theta}{2} \mathbf{a}) = (\cos u \tfrac{\theta}{2}, \sin u \tfrac{\theta}{2} \mathbf{a})
+\]</div>
+<p>We can now go back to the problem of interpolating rotations. We will build a
+solution in the same manner we did for the matrix representation. If we consider
+two rotations <span class="arithmatex">\(\mathbf{q}_1\)</span> and <span class="arithmatex">\(\mathbf{q}_2\)</span>, we can write the rotation that
+transforms <span class="arithmatex">\(\mathbf{q}_1\)</span> to <span class="arithmatex">\(\mathbf{q}_2\)</span> as
+<span class="arithmatex">\(\mathbf{q}_{1 \rightarrow 2} = \mathbf{q}_2 \mathbf{q}_1^{-1}\)</span>. This gives us
+the axis-angle representation of the rotation. To rotate the axis by the angle
+<span class="arithmatex">\(u \theta_{1 \rightarrow 2}\)</span>, we can raise the quaternion
+<span class="arithmatex">\(\mathbf{q}_{1 \rightarrow 2}\)</span> to the power <span class="arithmatex">\(u\)</span> and multiply back by
+<span class="arithmatex">\(\mathbf{q}_1\)</span>. Putting it all together we get</p>
+<div class="arithmatex">\[
+\mathbf{q}(u) = (\mathbf{q}_2 \mathbf{q}_1^{-1})^u \mathbf{q}_1
+\]</div>
+<p>The interpolated rotations using quaternions, illustrated in
+<a href="#interpolation_quat">Figure 7.7</a>, has the same structure as the ones we derived
+for the matrix representation, but they are simpler to compute since we do not
+need to necessarily switch between representations. And just like for the matrix
+representation, the interpolated rotations have constant speed and use the same
+axis for all intermediate rotations, which are desired properties when
+interpolating rotations.</p>
+<p><img alt="interpolation_quat" id="interpolation_quat" src="diagrams/07_animation/interpolation_quat.png"><br>
+Figure 7.7. Interpolation of rotations using quaternions.</p>
+<p>The same interpolation can be derived using a geometric construction, and
+observing the interpolation of rotations is equivalent to the interpolation of
+points onto the unit sphere in four dimensions since unit quaternion have norm
+one. The geometric proof is less straightforward, but it provides a simpler, but
+equivalent, formula called <em>spherical linear interpolation</em>, or SLERP, that is
+given by</p>
+<div class="arithmatex">\[
+\mathbf{q}(u) = \frac{\mathbf{q}_1 \sin((1-u) \theta_{1 \rightarrow 2}) + \mathbf{q}_2 \sin(u \theta_{1 \rightarrow 2})}{\sin \theta_{1 \rightarrow 2}}
+\]</div>
+<p>In the previous equation, the angle <span class="arithmatex">\(\theta_{1 \rightarrow 2}\)</span> can be computed
+as the arc cosine of the dot product of the two quaternions as
+<span class="arithmatex">\(\theta_{1 \rightarrow 2} = \arccos(\mathbf{q}_1 \cdot \mathbf{q}_2)\)</span>, where the
+dot product is just taken component-wise.</p>
+<p>Some authors suggest that a simpler interpolation can be obtained by using the
+linear interpolation of the quaternion components, and normalizing them. But
+this interpolation does not have constant speed, and it is not exactly
+equivalent to the interpolation of rotations. Still, we can write that, at least
+for small angles,</p>
+<div class="arithmatex">\[
+\mathbf{q}(u) \approx \frac{(1-u) \mathbf{q}_1 + u \mathbf{q}_2}{\| (1-u) \mathbf{q}_1 + u \mathbf{q}_2 \|} \quad \text{for small angles}
+\]</div>
+<p><img alt="interpolation_slerp" id="interpolation_slerp" src="diagrams/07_animation/interpolation_slerp.png"><br>
+Figure 7.8. Interpolation of rotations using SLERP.</p>
+<h2>7.5. Transformation Hierarchies</h2>
+<p>With the ability to interpolate transformations, we can now define animations of
+rigid objects. To animate whole scenes, we need to define how to animate each
+object, and how those animations are related. For example, if we have a cup and
+a spoon on a table, then if we move the table we would like to see both cup and
+spoon move at the same time. One way to do this is to manually synchronize those
+animations, which becomes quickly impractical for complex environments.</p>
+<p>The most practical manner in which to animate groups of objects is to define
+<em>transformation hierarchies</em>. A transformation hierarchy is a tree structure
+where each node is associated with a transformation. The transformation of a
+node is defined relative to the transformation of its parent node. The root of
+the tree is associated with the world coordinate system, and the transformation
+of each node is defined relative to the coordinate system of the parent in
+three. This is illustrated in <a href="#hierarchy_transform">Figure 7.9</a>. We can write
+the transformation of a node <span class="arithmatex">\(i\)</span> in world coordinates <span class="arithmatex">\(\mathbf{F}_i\)</span> recursively
+as the product of the world-space transformation of its parent node
+<span class="arithmatex">\(\mathbf{F}_p\)</span> and the transformation of node <span class="arithmatex">\(i\)</span> relative to its parent
+<span class="arithmatex">\(\mathbf{F}_i^{\text{local}}\)</span> as
+<span class="arithmatex">\(\mathbf{F}_i = \mathbf{F}_{p} \mathbf{F}_i^{\text{local}}\)</span>. A more explicit way
+to write this is the indicate as <span class="arithmatex">\(P_i\)</span> the nodes along a path from <span class="arithmatex">\(i\)</span> to the
+root. The world transformation of a node <span class="arithmatex">\(i\)</span> is then given by</p>
+<div class="arithmatex">\[
+\mathbf{F}_i = \prod\nolimits_{j \in P_i}\mathbf{F}^\text{local}_j
+\]</div>
+<p><img alt="hierarchy_transform" id="hierarchy_transform" src="diagrams/07_animation/hierarchy_transform.png"><br>
+Figure 7.9. Example of a transformation of two object with and without a
+transformation hierarchy. Here we only move the lower box. The upper sphere
+moves with it if it is a transform child of the lower box.</p>
+<p>While there are more complex ways to define relationship between
+transformations, transformations hierarchies are the most commonly-used one and
+are found in all animation systems.</p>
+<p>A second case where transformation hierarchies are useful is when we want to
+animate a character. In this case, we define a hierarchy of transformations that
+is associated with the character skeleton. The root of the hierarchy is
+associated with the root of the skeleton, and each node is associated with a
+bone. For characters made of rigid parts, such as robots, these transformation
+hierarchies are sufficient to describe the motion of the character.</p>
+<h2>7.6. Blend Shapes</h2>
+<p>For surfaces that model organic characters, such as humans or animals, animation
+amounts to describing the changes to the surface with time, i.e. its
+<em>deformation</em>. Over the years, a variety of techniques have been proposed to
+better approximate realistic motion.</p>
+<p>The simplest of these methods is to define a set of meshes, called <em>blend
+shapes</em>, that have the same topology but different vertex positions. In these
+meshes, the character it typically in a different pose. The animation is then
+defined by interpolating the positions of the vertices of the meshes. This is
+illustrated in <a href="#deformation_blend">Figure 7.10</a>. To model complex animation,
+this method is generally implemented by a defining a set of weights <span class="arithmatex">\(w_i(t)\)</span>,
+one for each blend shape <span class="arithmatex">\(\mathcal{M}_i\)</span>, that are animated trough time. If we
+write as <span class="arithmatex">\(\mathbf{p}_{i,j}\)</span> the positions of the vertices of the <span class="arithmatex">\(\mathcal{M}_i\)</span>
+blend shape, then the interpolated positions of the vertices of the animated
+mesh are given by</p>
+<div class="arithmatex">\[
+\mathbf{p}_j(t) = \sum\nolimits_i w_i(t) \mathbf{p}_{i,j}
+\]</div>
+<p><img alt="deformation_blend" id="deformation_blend" src="diagrams/07_animation/deformation_blend.png"><br>
+Figure 7.10. Example of linear interpolation of blend shapes.</p>
+<p>The method of blend shape has the advantage of being easy to control since the
+interpolated shape can be easily modeled by adding additional blend shapes. At
+the same time, it is very inefficient exactly because it needs a large number of
+blend shapes. For example, think of a character that is walking and talking at
+the same time. In this case, we would need to define a blend shape for each
+possible combination of walking and talking. This can be ameliorated by having
+blend shapes that only affect part of the mesh, but it is still not sufficient
+to model complex animation.</p>
+<h2>7.7. Linear Blend Skinning</h2>
+<p>More efficient methods for complex deformations rely on computing the deformed
+surface, as opposed to storing it like blend shapes do. Once again, there are a
+plethora of techniques introduced in the literature and used in practice that
+depend on the deformation we are modeling and how we control them. Discussing
+them all is beyond the scope of this book. Instead, we will just introduce the
+basic ideas used to develop these methods.</p>
+<p>The most commonly used model for character deformation is <em>skinning</em>. In this
+model, the character motion is controlled by a set of transformations
+<span class="arithmatex">\(\mathbf{F}_i\)</span>, called "bones", that are grouped hierarchically to form a
+character "skeleton". The deformation of the surface follows the movements of
+the nearby bones. We model the relation between vertices and bones by
+associating a weight <span class="arithmatex">\(w_{i,j}\)</span> at each pair formed by a vertex <span class="arithmatex">\(\mathbf{p}_j\)</span>
+and a bone <span class="arithmatex">\(\mathbf{F}_i\)</span>. There are a few variants of this model, depending on
+how the transformed vertices are combined. In <em>linear blend skinning</em>, the
+deformed position of a vertex <span class="arithmatex">\(\mathbf{p}_j\)</span> is given by the weighted average of
+the position of that vertex as it is transformed by each bone <span class="arithmatex">\(\mathbf{F}_i\)</span>.
+This is illustrated in <a href="#deformation_skin">Figure 7.11</a>. To compute the
+deformation we specify a <em>rest pose</em>, where the character is in a neutral pose
+and all the bones are in their default positions. We indicate with
+<span class="arithmatex">\(\bar{\mathbf{p}}_j\)</span> the vertex positions in the rest pose and with
+<span class="arithmatex">\(\bar{\mathbf{F}}_i\)</span> the bone transformations in the rest pose. The deformation
+of the character is then given by</p>
+<div class="arithmatex">\[
+\mathbf{p}_j(u) = \sum\nolimits_i w_{i,j} \mathbf{F}_i(u) \bar{\mathbf{F}}^{-1}_i \bar{\mathbf{p}}_j
+\]</div>
+<p><img alt="deformation_skin" id="deformation_skin" src="diagrams/07_animation/deformation_skin.png"><br>
+Figure 7.11. Example of linear blend skinning.</p>
+<p>Linear blend skinning is a simple method that exhibits several artifacts. These
+are related to the fact that instead of interpolating vertex transformations, it
+simply blends their matrix coefficients. This is easily shown by considering the
+deformation of a vertex <span class="arithmatex">\(\mathbf{p}_j\)</span> written with respect to the rest pose as
+<span class="arithmatex">\((\sum\nolimits_i w_{i,j} \mathbf{F}_i(t) \bar{\mathbf{F}}^{-1}_i) \bar{\mathbf{p}}_j\)</span>,
+that makes it clear that the deformation is a linear combination of the matrix
+coefficeints of the bone transformations. We have already seen how this is an
+issue when interpolating rotations, and similar issues arise when interpolating
+translations and rotations together, transformations that are required for bone
+placement. The most visible resulting artifacts often appear as loss of volumes,
+as illustrated in <a href="#deformation_skinbad">Figure 7.12</a>.</p>
+<p><img alt="deformation_skinbad" id="deformation_skinbad" src="diagrams/07_animation/deformation_skinbad.png"><br>
+Figure 7.12. Loss of volume in linear blend skinning.</p>
+<h2>7.8. Dual Quaternion Skinning (*)</h2>
+<p>Of the many methods proposed to improve the quality of linear blend skinning,
+the most common approach is to use <em>dual quaternions</em> to represent bone
+transformations. Dual quaternions are a representation of rigid transformations
+that is equivalent to their matrix representation, but that interpolates better,
+in the same manner as quaternions interpolate rotations better than matrices. In
+particular, dual quaternions are used to interpolate translations and rotations
+together, while quaternions are used to interpolate rotations alone. Just like
+quaternions, we will focus here on the notions needed for graphics.</p>
+<p>Dual quaternions are quaternions whose components are dual numbers. We will
+present dual quaternions here without introducing dual numbers for brevity, and
+instead write dual quaternions <span class="arithmatex">\(\dot{\mathbf{q}}\)</span> as pairs of quaternions
+<span class="arithmatex">\(\dot{\mathbf{q}} = (\mathbf{q}_1, \mathbf{q}_2)\)</span>. Dual quaternions are linear
+quantities, with the sum and scaling operations written component-wise as</p>
+<div class="arithmatex">\[
+\dot{\mathbf{q}} + \dot{\mathbf{r}} = (\mathbf{q}_1 + \mathbf{r}_1, \mathbf{q}_2 + \mathbf{r}_2) \qquad
+\alpha \dot{\mathbf{q}} = (\alpha \mathbf{q}_1, \alpha \mathbf{q}_2)
+\]</div>
+<p>On dual quaternion, we define a product and conjugate as</p>
+<div class="arithmatex">\[
+\dot{\mathbf{q}} \dot{\mathbf{r}} = (\mathbf{q}_1 \mathbf{r}_1, \mathbf{q}_1 \mathbf{r}_2 + \mathbf{q}_2 \mathbf{r}_1) \qquad
+\dot{\mathbf{q}}^* = (\mathbf{q}_1^*, \mathbf{q}_2^*)
+\]</div>
+<p>The norm of a dual quaternion is the square root of the product of the dual
+quaternion and its conjugate. Differently from quaternions, the norm of a dual
+quaternion is a dual number, with a scalar and a dual part. We write the norm as</p>
+<div class="arithmatex">\[
+\| \dot{\mathbf{q}} \| = \sqrt{\dot{\mathbf{q}}\dot{\mathbf{q}}^*} =
+\left( \| \mathbf{q}_1 \|, \frac{\mathbf{q}_1 \mathbf{q}_2}{\| \mathbf{q}_1 \|} \right)
+\]</div>
+<p>The use of dual quaternions is justified by the fact that <em>unit dual
+quaternions</em> represent rigid body transformation, i.e. transformation composed
+of a rotation followed by a translation. In fact, all rigid body transformations
+can be represented as unit dual quaternions. From the previous formula, we can
+see that the norm of a unit dual quaternion is one when <span class="arithmatex">\(\| \mathbf{q}_1 \| = 1\)</span>
+and <span class="arithmatex">\(\mathbf{q}_1 \mathbf{q}_2 = 0\)</span>.</p>
+<p>Unit dual quaternions transform points in a manner similar to quaternions. For a
+given point <span class="arithmatex">\(\mathbf{p}\)</span>, we construct the dual quaternion
+<span class="arithmatex">\(\dot{\mathbf{p}} = \left((1, \mathbf{0}), (0, \mathbf{p})\right)\)</span>. The
+transformed point <span class="arithmatex">\(\mathbf{p}'\)</span> is then given by the product
+<span class="arithmatex">\(\dot{\mathbf{q}} \dot{\mathbf{p}} \bar{\dot{\mathbf{q}}}^*\)</span>, where
+<span class="arithmatex">\(\bar{\dot{\mathbf{q}}}^* = (\mathbf{q}_1^*,-\mathbf{q}_2^*)\)</span>.</p>
+<p>The advantage of using dual quaternions is that the combination of two rigid
+transformations <span class="arithmatex">\(\dot{\mathbf{q}}_1 \circ \dot{\mathbf{q}}_2\)</span> is equivalent to
+the product of the corresponding dual quaternions, written as
+<span class="arithmatex">\(\dot{\mathbf{q}}_1 \circ \dot{\mathbf{q}}_2 = \dot{\mathbf{q}}_1 \dot{\mathbf{q}}_2\)</span>.
+We can now construct a dual quaternion for any given rigid transformation. We
+start by considering rotations represented as a unit quaternion <span class="arithmatex">\(\mathbf{q}\)</span>.
+The corresponding unit dual quaternion is given by
+<span class="arithmatex">\(\dot{\mathbf{q}} = (\mathbf{q}, (0, \mathbf{0}))\)</span>. We can verify by
+substitution that this extension maintains all the properties of unit
+quaternions for rotations. More surprisingly, we use dual quaternions to
+represent translations as well. Given a translation vector <span class="arithmatex">\(\mathbf{t}\)</span>, we can
+write the unit dual quaternion
+<span class="arithmatex">\(\dot{\mathbf{t}} = \left((1, \mathbf{0}), (0, \tfrac{1}{2} \mathbf{t})\right)\)</span>
+that represent a translation by <span class="arithmatex">\(\mathbf{t}\)</span>. We can verify that this quaternion
+represents a translation by substituting this equation in the definition of the
+transformed point. A rigid body motion <span class="arithmatex">\(\dot{\mathbf{r}}\)</span> that is the
+combination of a rotation and a translation is then written as the product of a
+rotation and a a translation as</p>
+<div class="arithmatex">\[
+\dot{\mathbf{r}} = \dot{\mathbf{t}} \dot{\mathbf{q}} \qquad
+\dot{\mathbf{q}} = (\mathbf{q}, (0,\mathbf{0})) \qquad
+\dot{\mathbf{t}} = \left((1, \mathbf{0}), (0, \tfrac{1}{2} \mathbf{t})\right)
+\]</div>
+<p>When used for interpolation, dual quaternions have for rigid transformations the
+same properties that quaternions have for rotations, in that they produce
+interpolated transformations that are minimal, with respect to the rotation
+angle and translation distance, and of constant speed. Our particular interest
+though is their use to compute weighted averages of rigid transformations.
+Computing these precisely involves the use of complex arithmetic that is often
+too expensive for practical use. Instead, we can use a simple weighted average
+that is accurate enough for most cases, and is written as</p>
+<div class="arithmatex">\[
+\dot{\mathbf{r}}(u) \approx \frac{\sum\nolimits_i w_i \dot{\mathbf{r}}_i(u)}{\| \sum\nolimits_i w_i \dot{\mathbf{r}}_i(u) \|}
+\]</div>
+<p>We can apply dual quaternions to skinning by using the interpolated dual
+quaternion to transformed the skinned point, instead of using matrices as is
+done in linear blend skinning. This method is called <em>dual quaternions
+skinning</em>. If we write as <span class="arithmatex">\(\bar{\mathbf{p}}_j\)</span> the vertex position in the rest
+pose, we can compute the deformed position of that vertex by transforming it by
+the dual quaternion <span class="arithmatex">\(\dot{\mathbf{r}}(u)\)</span> obtained as the average of the bone
+transformations <span class="arithmatex">\(\dot{\mathbf{r}}_i(u)\)</span>, scaled by the inverse of their rest
+pose transform <span class="arithmatex">\(\dot{\bar{\mathbf{r}}}_i\)</span>, weighted by the vertex-bine weights
+<span class="arithmatex">\(w_{i,j}\)</span>. Putting it all together, we can write dual quaternion skinning as</p>
+<div class="arithmatex">\[
+\mathbf{p}_j(u) = \sum\nolimits_i w_{i,j} \dot{\mathbf{r}}_i(u) \dot{\bar{\mathbf{r}}}^{-1}_i \bar{\mathbf{p}}_j = \dot{\mathbf{r}}(u) \bar{\mathbf{p}}_j \qquad
+\dot{\mathbf{r}}(u) = \frac{\sum\nolimits_i w_{i,j} \dot{\mathbf{r}}_i(u) \dot{\bar{\mathbf{r}}}^{-1}_i}{\| \sum\nolimits_i w_{i,j} \dot{\mathbf{r}}_i(u) \dot{\bar{\mathbf{r}}}^{-1}_i \|}
+\]</div>
+<p><a href="#deformation_dual">Figure 7.13</a> shows an example of dual quaternion skinning.
+For simple motions, both skinning methods behave similarly.</p>
+<p><img alt="deformation_dual" id="deformation_dual" src="diagrams/07_animation/deformation_dual.png"><br>
+Figure 7.13. Example of dual quaternion skinning.</p>
+<p>The advantage of dual quaternions is that they ameliorate the problems of linear
+blend skinning. <a href="#deformation_dualbad">Figure 7.14</a> shows how dual quaternions
+skinning reduces the volume loss of linear blend skinning. In the end though,
+all of these deformations are just approximations of the actual motion of the
+character. The most accurate way to model character deformation is to simulate
+the motion of muscles and skin. This is a very complex problem that is still an
+active area of research.</p>
+<p><img alt="deformation_dualbad" id="deformation_dualbad" src="diagrams/07_animation/deformation_dualbad.png"><br>
+Figure 7.14. Dual quaternion skinning ameliorates the volume loss issues of
+linear blend skinning.</p>
+<h2>7.9. Introduction to Simulation</h2>
+<p>The motions we considered so far are changes to the scenes controlled by a
+relatively small number of parameters. For natural phenomena, such as water,
+fire, smoke, or cloth, we need to define animations that cannot be represented
+in this manner efficiently. Instead, we use <em>simulation</em> where we define the
+equations that govern the motion of the objects in the scene, and then compute
+their motion by solving these equations.</p>
+<p>Depending on the material that we want to simulate, the equations of motions are
+quite different. For this reason, we often talk about using different <em>solvers</em>
+to solve the equations of motion. In graphics, we are often interested in
+simulating the motion of particles, for special effects such as explosions,
+rigid objects, to simulate large environments, deformable objects, such as cloth
+and hair, and fluids, such as water and smoke.</p>
+<p>In many graphics applications, each of these phenomena is simulated separately,
+and then combined to produce the final animation. But doing so often leads to
+artifacts, since the motion of the different phenomena is not affected by the
+others. Instead, it is often better to simulate all phenomena together, so that
+motions are coupled. But these kinds of simulators are still an area of active
+research and no solutions work well for all cases.</p>
+<p>Another consideration worth discussing is the difference between graphics
+simulators and simulators used in other fields, such as physics and engineering.
+In general, while all simulators solve the same equations of motion, they have
+different trade-offs when it comes to accuracy, speed, and the size of the
+environments they try to simulate. Graphics applications tend to favor
+simulation speed, environments size, and numerical stability at the expense of
+accuracy. This is because the goal of graphics simulators is to produce
+animations that look believable, but do not need to be necessarily physically
+accurate. Also, graphics simulators focus a lot of effort on handling collisions
+between objects, a notoriously hard problem that is not as much of a concern in
+many other fields.</p>
+<p>Given the variety of possible simulators and the complexity of the equations
+they solve, we will present here a very simple simulator for particle motion
+while trying to highlight the main ideas behind simulation in general.</p>
+<h2>7.10. Particle Simulation</h2>
+<p>The simplest simulation we can consider is the motion of particles. Let us
+consider a particle with position <span class="arithmatex">\(\mathbf{p}(t)\)</span>. From the particle position,
+we can derive the particle velocity <span class="arithmatex">\(\mathbf{v}(t)\)</span> and acceleration
+<span class="arithmatex">\(\mathbf{a}(t)\)</span> as the first and second derivative of the position with respect
+to time, written as</p>
+<div class="arithmatex">\[
+\mathbf{v}(t) = \frac{\text{d} \mathbf{p}(t)}{\text{d} t} \qquad
+\mathbf{a}(t) = \frac{d \mathbf{v}(t)}{\text{d} t} =
+                \frac{\text{d}^2 \mathbf{p}(t)}{\text{d} t^2}
+\]</div>
+<p>The motion of the particle is determined by the forces acting on it, expressed
+as a force vector <span class="arithmatex">\(\mathbf{f}\)</span>, and the particle mass <span class="arithmatex">\(m\)</span>. In the general case,
+the forces acting on a particle may depend on the particle's position, the
+particle's velocity, and time, so we will write the force as
+<span class="arithmatex">\(\mathbf{f}(\mathbf{p}, \mathbf{v}, t)\)</span>. The acceleration of the particle is
+then given by Newton's second law as</p>
+<div class="arithmatex">\[
+\mathbf{f}(\mathbf{p}, \mathbf{v}, t) = m \mathbf{a}(t)
+\]</div>
+<p>In a simulation, we know the forces acting on the particle, and the initial
+position and velocity of the particle. From these, we want to compute the
+particle position at each subsequent time. This is an <em>initial value problem</em>
+that we can solve by integrating the equations of motion. We can write the
+initial value problem as a second-order differential equation as</p>
+<div class="arithmatex">\[
+\frac{\text{d}^2 \mathbf{p}(t)}{\text{d} t^2} = \frac{\mathbf{f}(\mathbf{p}, \mathbf{v}, t)}{m}
+\qquad \mathbf{p}(0) = \mathbf{p}^0 \qquad \mathbf{v}(0) = \mathbf{v}^0
+\]</div>
+<p>An alternative way to write the same equation is to write the velocity as the
+first derivative of the position, and then write the initial value problem as a
+system of two first-order differential equations as</p>
+<div class="arithmatex">\[
+\frac{\text{d} \mathbf{p}(t)}{\text{d} t} = \mathbf{v}(t) \qquad
+\frac{\text{d} \mathbf{v}(t)}{\text{d} t} = \frac{\mathbf{f}(\mathbf{p}, \mathbf{v}, t)}{m}
+\qquad \mathbf{p}(0) = \mathbf{p}^0 \qquad \mathbf{v}(0) = \mathbf{v}^0
+\]</div>
+<p>We can now solve the initial value problem by integrating the equations of
+motion. The resulting motion <span class="arithmatex">\(\mathbf{p}(t)\)</span> is a continuous function of time.
+To illustrate this idea, let us consider the motion of a particle under the
+influence of gravity. Gravity generates a constant acceleration of
+<span class="arithmatex">\(g = 9,8 m s^{-2}\)</span> towards the bottom of a scene. The corresponding force is
+<span class="arithmatex">\(\mathbf{f}_g = (0, -g, 0)\)</span>. The resulting motion can be computed analytically
+as
+<span class="arithmatex">\(\mathbf{p}(t) = \mathbf{p}^0 + \mathbf{v}^0 t + \frac{1}{2} \mathbf{f}_g t^2/m\)</span>.
+Another example is to consider a particle under the influence of a spring.
+Springs pull particles towards their rest position, and the force acting on the
+particle is proportional to the distance from the rest position and the spring
+stiffness. If we assume for simplicity that the spring rest position is at the
+origin, and we write as <span class="arithmatex">\(k\)</span> the spring stiffness, then the force acting on the
+particle is <span class="arithmatex">\(\mathbf{f}(\mathbf{p}, \mathbf{v}, t) = -k \mathbf{p}\)</span>. The
+resulting motion is an oscillatory motion around the origin, that can be
+computed analytically as
+<span class="arithmatex">\(\mathbf{p}(t) = \mathbf{p}^0 \cos(\omega t) + \mathbf{v}^0 \sin(\omega t) / \omega\)</span>
+with <span class="arithmatex">\(\omega = \sqrt{k /m}\)</span>. <a href="#simulation_analytic">Figure 7.15</a> plots the <span class="arithmatex">\(y\)</span>
+coordinate of the particle motion over time, for these two cases.</p>
+<p><img alt="simulation_analytic" id="simulation_analytic" src="diagrams/07_animation/simulation_analytic.png"><br>
+Figure 7.15. Examples of particle motion under a spring (left) and gravity
+(right). The plots show the <span class="arithmatex">\(y\)</span> coordinate of the particle position over time.</p>
+<p>Just like we did for all other continuous quantities, we need to discretize
+particle motions to represent them digitally. The simplest way to do so is to
+store samples of the motion at regular intervals of time, for example one for
+each frame, as shown in <a href="#simulation_discretization">Figure 7.16</a>. We will use
+the notation <span class="arithmatex">\(\mathbf{p}(t^k) = \mathbf{p}^k\)</span> to indicate the position of the
+particle at the <span class="arithmatex">\(k\)</span>-th frame, corresponding to the time <span class="arithmatex">\(t^k = k \Delta t\)</span>,
+where <span class="arithmatex">\(\Delta t\)</span> is the time between frames.</p>
+<p><img alt="simulation_discretization" id="simulation_discretization" src="diagrams/07_animation/simulation_discretization.png"><br>
+Figure 7.16. Discretization of the motion of a particle, compared to their
+continuous counterpart.</p>
+<p>Initial value problems are well studied in the literature, and several methods
+have been proposed to solve them. In graphics applications, the most commonly
+used methods are in the family of <em>Euler methods</em>. These methods are generally
+considered to be inaccurate, but they are fast and easy to implement. Their use
+in graphics is mostly due to the fact that they can be adapted easily to handle
+collisions, as we will see later, which are much harder to integrate if higher
+order integration methods. The simplest variant of the Euler method is derived
+by approximating the derivatives in the equations of motion with finite
+differences, as</p>
+<div class="arithmatex">\[
+\frac{\text{d} \mathbf{p}(t)}{\text{d} t} \approx \frac{\mathbf{p}(t + \Delta t) - \mathbf{p}(t)}{\Delta t} \qquad
+\frac{\text{d} \mathbf{v}(t)}{\text{d} t} \approx \frac{\mathbf{v}(t + \Delta t) - \mathbf{v}(t)}{\Delta t}
+\]</div>
+<p>From these equations, we derive the <em>explicit Euler method</em> that is given by</p>
+<div class="arithmatex">\[
+\mathbf{p}^{k+1} = \mathbf{p}^k + \mathbf{v}^k \Delta t  \qquad
+\mathbf{v}^{k+1} = \mathbf{v}^k + \mathbf{f}(\mathbf{p}^k, \mathbf{v}^k, t^k) \Delta t / m
+\]</div>
+<p>The explicit Euler method works well for low-stiffness springs, but becomes
+unstable for high-enough spring stiffness, as shown in
+<a href="#simulation_explicit">Figure 7.17</a>.</p>
+<p><img alt="simulation_explicit" id="simulation_explicit" src="diagrams/07_animation/simulation_explicit.png"><br>
+Figure 7.17. Integration of a particle under the influence of a spring using the
+explicit Euler method, for a low-stiffness (blue) and a high-stiffness (orange)
+spring. Explicit Euler is not stable for high-stiffness systems.</p>
+<p>A second variant of the Euler method, called <em>semi-implicit Euler method</em>, is
+derived by using the velocity at the next time step to approximate the
+derivative of the position, as</p>
+<div class="arithmatex">\[
+\mathbf{p}^{k+1} = \mathbf{p}^k + \mathbf{v}^{k+1} \Delta t  \qquad
+\mathbf{v}^{k+1} = \mathbf{v}^k + \mathbf{f}(\mathbf{p}^k, \mathbf{v}^k, t^k) \Delta t / m
+\]</div>
+<p>The semi-implicit variant is more stable than the explicit one, while remaining
+easy to implement, as shown in <a href="#simulation_symplectic">Figure 7.18</a>. In
+practice, it is the most often used in graphics applications.</p>
+<p><img alt="simulation_symplectic" id="simulation_symplectic" src="diagrams/07_animation/simulation_symplectic.png"><br>
+Figure 7.18. Integration of a particle under the influence of a spring using the
+semi-implicit Euler method, for a low-stiffness (blue) and a high-stiffness
+(orange) spring. Semi-implicit Euler is stable for relatively high-stiffness
+systems.</p>
+<p>A final variant of the Euler method, called <em>implicit Euler method</em>, is derived
+by using the position and velocity at the next time step to compute the force,
+as</p>
+<div class="arithmatex">\[
+\mathbf{p}^{k+1} = \mathbf{p}^k + \mathbf{v}^{k+1} \Delta t  \qquad
+\mathbf{v}^{k+1} = \mathbf{v}^k + \mathbf{f}(\mathbf{p}^{k+1}, \mathbf{v}^{k+1}, t^k) \Delta t / m
+\]</div>
+<p>The implicit variant is the most numerically stable of the ones we considered,
+but it is also significantly more complex to implement, since it requires the
+solution of a non-linear system of equations at each time step in the general
+case. Also, it looses energy, thus slowing particles down, as shown in
+<a href="#simulation_implicit">Figure 7.19</a>. This is generally accepted in graphics
+since in the real-world objects slow down due to friction. Implicit Euler
+methods are sometimes used in graphics in challenging simulation where numerical
+stability is hard to achieve with other methods.</p>
+<p><img alt="simulation_implicit" id="simulation_implicit" src="diagrams/07_animation/simulation_implicit.png"><br>
+Figure 7.19. Integration of a particle under the influence of a spring using the
+implicit Euler method, for a low-stiffness (blue) and a high-stiffness (orange)
+spring. Implicit Euler is always stable, at the price of loosing energy.</p>
+<h2>7.11. Mass-Spring Systems</h2>
+<p>A mass-spring system is a set of particles connected by springs. The motion of
+the particles is determined by the spring forces, as well as any external force
+such as gravity. Mass-spring systems are used to simulate a variety of
+phenomena, such as cloth, hair, and deformable objects. These systems are
+inaccurate approximations of the actual motion of the objects they simulate, but
+they are fast and easy to implement, and they are often sufficient for graphics
+applications.</p>
+<p>We consider springs that connect pairs of particles, say <span class="arithmatex">\(\mathbf{p}_i\)</span> and
+<span class="arithmatex">\(\mathbf{p}_j\)</span>. The force that a spring applies on a particle <span class="arithmatex">\(\mathbf{p}_i\)</span> is
+proportional to the spring stiffness <span class="arithmatex">\(k_s\)</span> scaled by the difference between the
+spring rest length <span class="arithmatex">\(l_s\)</span> and its current length
+<span class="arithmatex">\(\| \mathbf{p}_i - \mathbf{p}_j \|\)</span>, and is parallel to the vector connecting
+the particles that form the string. The force that the spring applies on the
+particle <span class="arithmatex">\(\mathbf{p}_j\)</span> is the same but in the opposite direction. We can write
+the spring force as</p>
+<div class="arithmatex">\[
+\mathbf{f}_{i,j}^\text{spring} = -k_s (\| \mathbf{p}_i - \mathbf{p}_j \| - l_s) \frac{\mathbf{p}_i - \mathbf{p}_j}{\| \mathbf{p}_i - \mathbf{p}_j \|}
+\]</div>
+<p>We model a mass-spring system as a collection of <span class="arithmatex">\(n\)</span> particles with positions
+<span class="arithmatex">\(\mathbf{p}_i(t)\)</span> and masses <span class="arithmatex">\(m_i\)</span>. The motion of the particles is determined by
+a set of <span class="arithmatex">\(m\)</span> springs that connects pairs of particles <span class="arithmatex">\((i, j)\)</span> with springs of
+rest length <span class="arithmatex">\(l_s\)</span> and stiffness <span class="arithmatex">\(k_s\)</span>.</p>
+<p>We also consider external forces <span class="arithmatex">\(\mathbf{f}_i^{\text{ext}}\)</span> acting on the
+particles. In particular, we consider gravity, that is a constant force
+<span class="arithmatex">\(\mathbf{f}_i^{\text{ext}} = m_i \mathbf{g}\)</span>, where <span class="arithmatex">\(\mathbf{g}\)</span> is the
+acceleration due to gravity that is a constant vector with magnitude
+<span class="arithmatex">\(9.8\ \text{m}/\text{s}^2\)</span> and direction pointing downwards. If we write as
+<span class="arithmatex">\(S_i\)</span> the set of particles <span class="arithmatex">\(j\)</span> connected to particle <span class="arithmatex">\(i\)</span> by a spring, then the
+force acting on the particle <span class="arithmatex">\(i\)</span> is given by</p>
+<div class="arithmatex">\[
+\mathbf{f}_i = \sum\nolimits_{j \in S_i} \mathbf{f}_{i,j} + \mathbf{f}_i^{\text{ext}}
+\]</div>
+<p>From these equation, we can sketch the implementation of a mass-spring solver
+that uses the semi-implicit Euler method. In general, the accuracy of the solver
+is small for large enough <span class="arithmatex">\(\Delta t\)</span>, so we perform <span class="arithmatex">\(n_s\)</span> sub-steps for each
+frame, where each subset taking <span class="arithmatex">\(\Delta t / n_s\)</span> time. In the implementation
+sketch below, the particles states is comprised of the particles positions
+<span class="arithmatex">\(\mathbf{p}_i\)</span>, velocities <span class="arithmatex">\(\mathbf{v}_i\)</span> and masses <span class="arithmatex">\(m_i\)</span>, while the springs
+are defined by the indices of the particles they connect <span class="arithmatex">\((i_s,j_s)\)</span>, the
+springs' rest lengths <span class="arithmatex">\(l_s\)</span> and stiffness <span class="arithmatex">\(k_s\)</span>. For simplicity of notation, we
+indicate the particle state at the next time with primed letters. The solver is
+then a straightforward implementation of the semi-implicit Euler method, using
+<span class="arithmatex">\(n_s\)</span> sub-steps per frame, that can be written as</p>
+<div class="arithmatex">\[
+\begin{alignedat}{2}
+&amp; \text{function } \text{simulate\_dynamics}(\mathbf{p}, \mathbf{v})
+  \rightarrow (\mathbf{p}', \mathbf{v}'): \\
+&amp;\quad \text{foreach sub-step } s \in [1, n_s]: &amp;&amp;
+  \quad\textcolor{gray}{\text{\it iterate over sub-steps}} \\
+&amp;\quad\quad \text{foreach particle } \mathbf{p}_i: \mathbf{f}_i := m_i \mathbf{g} &amp;&amp;
+  \quad\textcolor{gray}{\text{\it initialize forces with gravity}} \\
+&amp;\quad\quad \text{foreach spring } \mathbf{s}_s: &amp;&amp;
+  \quad\textcolor{gray}{\text{\it accumulate spring forces}} \\
+&amp;\quad\quad\quad \mathbf{f}^\text{spring} := -k_s (\| \mathbf{p}_{i_s} - \mathbf{p}_{j_s} \| - l_s) \frac{\mathbf{p}_{i_s} - \mathbf{p}_{j_s}}{\| \mathbf{p}_{i_s} - \mathbf{p}_{j_s} \|} &amp;&amp;
+  \quad\textcolor{gray}{\text{\it compute force}} \\
+&amp;\quad\quad\quad \mathbf{f}_{i_s} := \mathbf{f}_{i_s} + \mathbf{f}^\text{spring};\quad
+  \mathbf{f}_{j_s} := \mathbf{f}_{j_s} - \mathbf{f}^\text{spring} &amp;&amp;
+  \quad\textcolor{gray}{\text{\it accumulate force}} \\
+&amp;\quad\quad \text{foreach particle } \mathbf{p}_i: \mathbf{v}'_i := \mathbf{v}_i + (\mathbf{f}_i / m_i) (\Delta t / n_s)  &amp;&amp;
+  \quad\textcolor{gray}{\text{\it update velocities}} \\
+&amp;\quad\quad \text{foreach particle } \mathbf{p}_i: \mathbf{p}'_i := \mathbf{p}_i + \mathbf{v}'_i (\Delta t / n_s) &amp;&amp;
+  \quad\textcolor{gray}{\text{\it update positions}} \\
+&amp;\quad\text{return } \mathbf{p}', \mathbf{v}' \\
+\end{alignedat}
+\]</div>
+<p>A useful example of mass-print systems is the modeling of cloth. In this case,
+the particles are arranged in a quad grid, and each particle is connected to its
+neighbors by springs. To ensure that the cloth does not bend freely, we also
+connect each particle to its diagonal neighbors. This is illustrated in
+<a href="#cloth_grid">Figure 7.20</a>.</p>
+<p><img alt="cloth_grid" id="cloth_grid" src="diagrams/07_animation/cloth_grid.png"><br>
+Figure 7.20. Mass-spring system for cloth simulation.</p>
+<p><a href="#cloth_euler1">Figure 7.21</a> shows the result of simulating a hanging cloth
+under gravity using the mass-spring solver we presented.</p>
+<p><img alt="cloth_euler1" id="cloth_euler1" src="diagrams/07_animation/cloth_euler1.png"><br>
+Figure 7.21. Simulation of cloth using a mass-spring system.</p>
+<h2>7.12. Collision Handling</h2>
+<p>One of the most important, but also complex, aspects of simulation is handling
+collisions. Collisions are complex since they are hard to detect in a robust
+manner, and, once detected, they are hard to handle since the forces they
+produce are often large and can lead to instabilities. In fact, collisions are
+still an active area of research, and there is no general solution that works
+for all cases. In this section, we will present some ideas common to many
+solutions used in practice.</p>
+<p>Most collision handling algorithms are split into two phases. In the first
+phase, called <em>collision detection</em>, we find collisions between objects. In the
+second phase, called <em>collision response</em>, we handle the collisions by updating
+the kinematics or dynamics of the bodies involved in the collision.</p>
+<p>Collision detections methods are roughly grouped into two categories, as shown
+in <a href="#collision_types">Figure 7.22</a>. <em>Discrete collision detection</em> methods
+detect collisions at discrete time steps, typically at the beginning or end of
+each frame. These methods detect collisions by checking whether objects overlap
+at the time the method is executed. These methods are simpler to implement, but
+may miss collisions between objects that are moving fast. <em>Continuous collision
+detection</em> methods detect collisions by following the trajectory of objects' to
+determine the time at which a collision happens during the frame. These methods
+are significantly harder to implement, and more expensive to evaluate, but they
+are more accurate and do not miss collisions regardless of the speed of the
+objects.</p>
+<p><img alt="collision_types" id="collision_types" src="diagrams/07_animation/collision_types.png"><br>
+Figure 7.22. Discrete and continuous collision detection.</p>
+<p>In the context of solvers for particle systems, collisions can be detected
+between particles and static objects, such as the ground, or between particles
+and other particles. In the first case, shown in <a href="#collision_mesh">Figure 7.23</a>,
+a simple discrete collision is to check whether a particle is inside a static
+mesh. This can be done by checking whether a ray starting at the particle
+position and pointing in any directions intersects the mesh an odd number of
+times. A continuous collision detection between particles and static meshes can
+be implemented by assuming that during a frame the particle is in free flight
+and travels in straight lines. In this case, we can check whether the particle
+trajectory intersects the mesh by tracing a ray from the particle position in
+the direction of the particle velocity. If the ray intersects the mesh, we can
+then check whether the intersection point is closer to the particle position
+than the distance the particle travels during the frame. If so, we have a
+collision.</p>
+<p><img alt="collision_mesh" id="collision_mesh" src="diagrams/07_animation/collision_mesh.png"><br>
+Figure 7.23. Collision detection between particles and static objects.</p>
+<p>For the case of collisions between particles, shown in
+<a href="#collision_particle">Figure 7.24</a>, we can treat particles as small spheres. A
+discrete collision detection method checks for particle collisions by
+determining whether two spheres are at a distance smaller than the sum of their
+radii. A continuous collision detection method is more involved and would
+require to trace the trajectories of the particles and check whether they
+intersect in flight.</p>
+<p><img alt="collision_particle" id="collision_particle" src="diagrams/07_animation/collision_particle.png"><br>
+Figure 7.24. Collision detection between moving particles.</p>
+<p>Collision response methods are roughly grouped into three categories, depending
+on how the dynamics of the affected objects is changed. <em>Force-based methods</em>
+add repulsive forces to the objects involved in the collision, to push them away
+from each other. These methods are hard to implement since choosing the right
+forces is not easy in general. <em>Constraint-based methods</em> add constraints to the
+objects involved in the collision, to prevent them from penetrating each other.
+The objects are them subject to impulses that change their velocities, computed
+from the constraints. These methods are easier to implement, but they require
+care since they can lead to instabilities. <em>Kinematics methods</em> change the
+objects' positions and velocities directly to prevent them from penetrating each
+other, without attempting to correctly modify the simulated dynamics. These
+methods are the easiest to implement, but they are the least accurate and often
+lead to surprising behaviors that do not match our intuition since they do not
+preserve dynamics' quantities.</p>
+<p>To this day, collision response is still an active area of research, and a lot
+more of an art than a science, since no solution works well for all cases. All
+graphics simulators use heuristics to handle collisions, and the resulting
+behavior is often tailored to the specific application they are used for.</p>
+<p>To show an example of collision detection and response for particles, we
+consider the case of particle collisions with static meshes. We assume that
+particles are small spheres with radius <span class="arithmatex">\(r_i\)</span>, and that the static mesh can be
+raytraced efficiently using an acceleration structure. We can detect collisions
+between particles <span class="arithmatex">\(\mathbf{p}_i\)</span> and static meshes <span class="arithmatex">\(\mathcal{M}_j\)</span> by tracing a
+ray from the original particle position <span class="arithmatex">\(\mathbf{p}_i\)</span> in the direction of the
+predicted particle position <span class="arithmatex">\(\mathbf{p}'_i\)</span> at the end of the frame. We detect a
+collision if the ray intersects the mesh before the end of the frame. We can
+then respond to the collision by moving the particle position <span class="arithmatex">\(\mathbf{p}'_i\)</span> to
+just outside the intersection point <span class="arithmatex">\(\mathbf{p}_c\)</span>, at a distance
+<span class="arithmatex">\(r_i + \epsilon\)</span> along the surface normal <span class="arithmatex">\(\mathbf{n}_c\)</span> at the collision point
+<span class="arithmatex">\(\mathbf{p}_c\)</span>, by setting
+<span class="arithmatex">\(\mathbf{p}'_i := \mathbf{p}_c + (r_i + \epsilon_c)\ \mathbf{n}_c\)</span>. We can also
+adjust the particle velocity <span class="arithmatex">\(\mathbf{v}'_i\)</span> by projecting it onto the collision
+normal as <span class="arithmatex">\(\mathbf{v}_p := (\mathbf{v}'_i \cdot \mathbf{n}_c)\ \mathbf{n}_c\)</span>,
+and then reflecting the particle velocity with respect to the collision normal
+as
+<span class="arithmatex">\(\mathbf{v}'_i := k_{b\perp} (\mathbf{v}'_i - \mathbf{v}^p_{ij}) - k_{b\parallel} \mathbf{v}^p_{ij}\)</span>,
+where <span class="arithmatex">\(k_{b\perp}\)</span> and <span class="arithmatex">\(k_{b\parallel}\)</span> are the restitution coefficients for the
+perpendicular and parallel components of the velocity. Putting together both
+steps, we can sketch a possible implementation of collision handling as</p>
+<div class="arithmatex">\[
+\begin{alignedat}{2}
+&amp; \text{function } \text{handle\_collision}(\mathbf{p}, \mathbf{p}', \mathbf{v}')
+  \rightarrow (\mathbf{p}', \mathbf{v}'): \\
+&amp;\quad \text{foreach particle } \mathbf{p}_i: &amp;&amp;
+  \quad\textcolor{gray}{\text{\it iterate over particles}} \\
+&amp;\quad\quad \text{foreach collision mesh } \mathcal{M}_j: &amp;&amp;
+  \quad\textcolor{gray}{\text{\it iterate over meshes}} \\
+&amp;\quad\quad\quad \mathbf{p}_r := \mathbf{p}_i ; \quad \mathbf{d}_r := (\mathbf{p}'_i - \mathbf{p}_i) /  \| \mathbf{p}'_i - \mathbf{p}_i \| &amp;&amp;
+  \quad\textcolor{gray}{\text{\it setup ray intersection}} \\
+&amp;\quad\quad\quad \text{if intersect}(\mathbf{p}_r, \mathbf{d}_r, \mathcal{M}_j) = \varnothing: \text{continue} &amp;&amp;
+  \quad\textcolor{gray}{\text{\it skip no-collision}} \\
+&amp;\quad\quad\quad \mathbf{p}_c := \text{intersect}(\mathbf{p}_r, \mathbf{d}_r, \mathcal{M}_j) ; \quad \mathbf{n}_c := \text{normal}(\mathbf{p}_c) &amp;&amp;
+  \quad\textcolor{gray}{\text{\it compute intersection}} \\
+&amp;\quad\quad\quad \mathbf{p}'_i := \mathbf{p}_c + (r_i + \epsilon_c)\ \mathbf{n}_c &amp;&amp;
+  \quad\textcolor{gray}{\text{\it adjust position}} \\
+&amp;\quad\quad\quad \mathbf{v}_p := (\mathbf{v}'_i \cdot \mathbf{n}_c)\ \mathbf{n}_c &amp;&amp;
+  \quad\textcolor{gray}{\text{\it project velocity}} \\
+&amp;\quad\quad\quad \mathbf{v}'_i := k_{b\perp} (\mathbf{v}'_i - \mathbf{v}_p) - k_{b\parallel} \mathbf{v}_p &amp;&amp;
+  \quad\textcolor{gray}{\text{\it adjust velocity}} \\
+&amp;\quad\text{return } \mathbf{p}', \mathbf{v}' \\\end{alignedat}
+\]</div>
+<p>The last component of many particle simulators is to add a <em>damping</em> term to the
+particle velocities. Damping is a force that is proportional to the particle
+velocity, and is used to dissipate energy from the system. We can write the
+dumping force as <span class="arithmatex">\(\mathbf{f}_i^\text{damp} = -k_d m_i \mathbf{v}_i\)</span>, where <span class="arithmatex">\(k_d\)</span>
+is the damping coefficient. This is useful to prevent the simulation from
+becoming unstable, and to make the motion of the particles look more natural. To
+be clear, this is a very imprecise approximation of the actual physical
+phenomena that dissipate energy from a system, but it is sufficient for many
+graphics applications. Finally, to ensure that particles eventually stop moving,
+small velocities are clamped to zero. Putting it all together, we can sketch a
+possible implementation of damping as</p>
+<div class="arithmatex">\[
+\begin{alignedat}{2}
+&amp; \text{function } \text{apply\_damping}(\mathbf{v}')
+  \rightarrow \mathbf{v}': \\
+&amp;\quad \text{foreach particle } \mathbf{p}_i: &amp;&amp;
+  \quad\textcolor{gray}{\text{\it iterate over particles}} \\
+&amp;\quad\quad \mathbf{v}'_i := \mathbf{v}'_i - k_d m_i \mathbf{v}'_i &amp;&amp;
+  \quad\textcolor{gray}{\text{\it apply damping}} \\
+&amp;\quad\quad \text{if } \| \mathbf{v}'_i \| &lt; \epsilon_v: \mathbf{v}'_i := \mathbf{0} &amp;&amp;
+  \quad\textcolor{gray}{\text{\it clamp small velocities}} \\
+&amp;\quad\text{return } \mathbf{v}' \\
+\end{alignedat}
+\]</div>
+<p>The final simulator is then obtained by combining the mass-spring solver with
+collision handling and damping, and is sketched in the code that follows. A few
+frames of the resulting simulation are shown in <a href="#cloth_euler2">Figure 7.25</a>.</p>
+<div class="arithmatex">\[
+\begin{alignedat}{2}
+&amp; \text{function } \text{simulate\_step}(\mathbf{p}, \mathbf{v})
+  \rightarrow (\mathbf{p}', \mathbf{v}'): \\
+&amp;\quad \mathbf{p}', \mathbf{v}' := \text{simulate\_dynamic}(\mathbf{p}, \mathbf{v}) &amp;&amp;
+  \quad\textcolor{gray}{\text{\it simulate mass-spring}} \\
+&amp;\quad \mathbf{p}', \mathbf{v}' := \text{handle\_collision}(\mathbf{p}, \mathbf{p}', \mathbf{v}') &amp;&amp;
+  \quad\textcolor{gray}{\text{\it handle collisions}} \\
+&amp;\quad \mathbf{v}' := \text{apply\_damping}(\mathbf{v}') &amp;&amp;
+  \quad\textcolor{gray}{\text{\it apply damping}} \\
+&amp;\quad\text{return } \mathbf{p}', \mathbf{v}' \\
+\end{alignedat}
+\]</div>
+<p><img alt="cloth_euler2" id="cloth_euler2" src="diagrams/07_animation/cloth_euler2.png"><br>
+Figure 7.25. Simulation of cloth with a mass-spring system and collisions.</p>
+</article>
+<footer>
+  <p>Copyright © 2024 Fabio Pellacini</p>
+</footer>
+</body>
+</html>
