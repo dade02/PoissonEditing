@@ -2,8 +2,8 @@ import os
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
-from matplotlib.colors import rgb_to_hsv, hsv_to_rgb
 from argparse import ArgumentParser
+from matplotlib.colors import rgb_to_hsv, hsv_to_rgb
 
 from solver import PoissonInterpolationSolver
 from utils import read_image
@@ -22,6 +22,14 @@ def build_gray_rgb(img_rgb):
     return np.stack([gray, gray, gray], axis=-1)
 
 
+def apply_rgb_multiply(img_rgb, factors):
+    """Moltiplica i canali RGB per fattori specifici."""
+    result = img_rgb.copy()
+    for c, factor in enumerate(factors):
+        result[..., c] *= factor
+    return np.clip(result, 0, 1)
+
+
 def apply_hue_shift(img_rgb, hue_delta_degrees):
     """Sposta la tonalità di un'immagine RGB mantenendo saturazione e luminosità."""
     hsv = rgb_to_hsv(img_rgb)
@@ -30,79 +38,32 @@ def apply_hue_shift(img_rgb, hue_delta_degrees):
     return np.clip(hsv_to_rgb(hsv), 0, 1)
 
 
-def apply_rgb_multiply(img_rgb, factors):
-    """Moltiplica i canali RGB per fattori specifici.
-    
-    Args:
-        img_rgb: immagine RGB [0, 1]
-        factors: tuple/list di 3 fattori (r, g, b) oppure singolo fattore per tutti i canali
-    
-    Returns:
-        immagine RGB modificata, clippata in [0, 1]
-    """
-    result = img_rgb.copy()
-    if isinstance(factors, (int, float)):
-        # Singolo fattore per tutti i canali
-        result *= factors
-    else:
-        # Fattori specifici per canale
-        for c, factor in enumerate(factors):
-            result[..., c] *= factor
-    return np.clip(result, 0, 1)
-
-
-def apply_brightness_contrast(img_rgb, brightness=0.0, contrast=1.0):
-    """Applica brightness e contrast a un'immagine RGB.
-    
-    Args:
-        img_rgb: immagine RGB [0, 1]
-        brightness: valore da aggiungere (-1 to 1)
-        contrast: fattore di moltiplicazione (0.5 to 2.0)
-    
-    Returns:
-        immagine RGB modificata, clippata in [0, 1]
-    """
-    result = img_rgb.copy()
-    # Applica contrast attorno al punto medio (0.5)
-    result = (result - 0.5) * contrast + 0.5
-    # Applica brightness
-    result += brightness
-    return np.clip(result, 0, 1)
-
-
 class LocalColorChangeSolver(PoissonInterpolationSolver):
     """Solutore per Local Color Change usando Poisson image editing."""
 
     def __init__(self, source_path, mask_path,
-                 solver='spsolve', mode='color_change', change_hue=60.0,
-                 rgb_factors=None, brightness=0.0, contrast=1.0):
+                 solver='spsolve', mode='gray_background',
+                 rgb_factors=(1.5, 0.5, 0.5),
+                 change_hue=60.0):
         self.original_rgb = read_image(source_path)
         self.mask = read_image(mask_path, gray=True)
         self.mask = (self.mask > 0.5).astype(np.float64)
 
         self.mode = mode
-        self.change_hue = change_hue
         self.rgb_factors = rgb_factors
-        self.brightness = brightness
-        self.contrast = contrast
+        self.change_hue = change_hue
 
         if self.mode == 'gray_background':
             guidance_rgb = self.original_rgb
             target_rgb = build_gray_rgb(self.original_rgb)
-        elif self.mode == 'color_change':
-            guidance_rgb = apply_hue_shift(self.original_rgb, self.change_hue)
-            target_rgb = self.original_rgb
         elif self.mode == 'multiply_rgb':
-            if rgb_factors is None:
-                raise ValueError("multiply_rgb mode richiede rgb_factors")
             guidance_rgb = apply_rgb_multiply(self.original_rgb, rgb_factors)
             target_rgb = self.original_rgb
-        elif self.mode == 'brightness_contrast':
-            guidance_rgb = apply_brightness_contrast(self.original_rgb, brightness, contrast)
+        elif self.mode == 'color_change':
+            guidance_rgb = apply_hue_shift(self.original_rgb, change_hue)
             target_rgb = self.original_rgb
         else:
-            raise ValueError("Modalità non valida. Usa 'color_change', 'gray_background', "
-                           "'multiply_rgb' o 'brightness_contrast'.")
+            raise ValueError("Modalità non valida. Usa 'gray_background', 'multiply_rgb' o 'color_change'.")
 
         super().__init__(guidance_rgb, target_rgb, self.mask,
                          solver=solver, color_space='RGB')
@@ -122,17 +83,13 @@ def main():
     parser.add_argument('--solver', default='spsolve',
                         choices=['spsolve', 'gmres', 'lgmres', 'bicg', 'bicgstab', 'cgs', 'minres', 'multigrid'],
                         help='Solver da usare')
-    parser.add_argument('--mode', default='color_change',
-                        choices=['color_change', 'gray_background', 'multiply_rgb', 'brightness_contrast'],
+    parser.add_argument('--mode', default='gray_background',
+                        choices=['gray_background', 'multiply_rgb', 'color_change'],
                         help='Modalità di modifica colore')
+    parser.add_argument('--rgb-factors', type=float, nargs=3, default=(1.5, 0.5, 0.5),
+                        help='Fattori di moltiplicazione per R, G, B in modalità multiply_rgb (default: 1.5 0.5 0.5)')
     parser.add_argument('--change-hue', type=float, default=60.0,
-                        help='Valore in gradi da aggiungere al canale hue in modalità color_change')
-    parser.add_argument('--rgb-factors', type=float, nargs=3, default=None,
-                        help='Fattori di moltiplicazione per R, G, B in modalità multiply_rgb (es: 1.5 0.5 0.5)')
-    parser.add_argument('--brightness', type=float, default=0.0,
-                        help='Valore brightness (-1 a 1) in modalità brightness_contrast')
-    parser.add_argument('--contrast', type=float, default=1.0,
-                        help='Fattore contrast (0.5 a 2.0) in modalità brightness_contrast')
+                        help='Valore in gradi da aggiungere al canale hue in modalità color_change (default: 60)')
     parser.add_argument('--output', default='local_color_change.png',
                         help='File output (immagine risultante)')
 
@@ -143,10 +100,8 @@ def main():
         args.mask,
         solver=args.solver,
         mode=args.mode,
+        rgb_factors=tuple(args.rgb_factors),
         change_hue=args.change_hue,
-        rgb_factors=args.rgb_factors,
-        brightness=args.brightness,
-        contrast=args.contrast,
     )
     result = solver.solve()
 

@@ -66,19 +66,17 @@ def main():
                         help='Fattore di moltiplicazione per alpha in Fattal et al. (default: 0.2)')
     parser.add_argument('--beta', type=float, default=0.5,
                         help='Esponente beta della trasformazione di Fattal (default: 0.5 per effetti più marcati)')
-    parser.add_argument('--color-mode', default='color_change',
-                        choices=['color_change', 'gray_background', 'multiply_rgb', 'brightness_contrast'],
-                        help='Modalità di modifica colore (solo per local_color_change)')
+    parser.add_argument('--rgb-factors', type=float, nargs=3, default=(1.5, 0.5, 0.5),
+                    help='Fattori di moltiplicazione per R, G, B (solo per multiply_rgb mode, default: 1.5 0.5 0.5)')
+    parser.add_argument('--color-mode', default='gray_background',
+                    choices=['gray_background', 'multiply_rgb', 'color_change'],
+                    help='Modalità di modifica colore (solo per local_color_change)')
     parser.add_argument('--change-hue', type=float, default=60.0,
-                        help='Valore in gradi da aggiungere al canale hue (solo per local_color_change in color_change mode)')
-    parser.add_argument('--rgb-factors', type=float, nargs=3, default=None,
-                        help='Fattori di moltiplicazione per R, G, B (solo per local_color_change in multiply_rgb mode)')
-    parser.add_argument('--brightness', type=float, default=0.0,
-                        help='Valore brightness (-1 a 1) (solo per local_color_change)')
-    parser.add_argument('--contrast', type=float, default=1.0,
-                        help='Fattore contrast (0.5 a 2.0) (solo per local_color_change)')
+                    help='Valore in gradi da aggiungere al canale hue (solo per color_change mode, default: 60)')
     parser.add_argument('--scale', type=float, default=1.0,
                         help='Fattore di scala immagine (solo per seamless_tiling)')
+    parser.add_argument('--luminance_only', action='store_true',
+                        help='lavora su luminanza nel flattening')
     parser.add_argument('--output', default='poisson_result.png',
                         help='File output (immagine composita)')
 
@@ -239,6 +237,7 @@ def main():
         print(f"✓ Immagini singole: {base_name}_{{source,target,mask,mixed}}{ext}")
 
     elif exec_mode == 'texture_flattening':
+    
         solver = TextureFlatteningSolver(
             target_path, mask_path,
             solver=args.solver,
@@ -247,7 +246,8 @@ def main():
             low_threshold=args.low_threshold,
             high_threshold=args.high_threshold,
             edge_mode=args.edge_mode,
-            edge_image_path=args.edge_image
+            edge_image_path=args.edge_image,
+            luminance_only=args.luminance_only
         )
         result = solver.solve()
 
@@ -331,10 +331,8 @@ def main():
             source_path, mask_path,
             solver=args.solver,
             mode=args.color_mode,
-            change_hue=args.change_hue,
             rgb_factors=args.rgb_factors,
-            brightness=args.brightness,
-            contrast=args.contrast
+            change_hue=args.change_hue
         )
         result = solver.solve()
 

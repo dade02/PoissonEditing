@@ -114,14 +114,47 @@ for tech_dir in "$DATA_DIR"/*/; do
 
         if [[ "$tech_type" == "color" ]]; then
             if [[ -n "$source_file" && -n "$mask_file" ]]; then
-                echo "--- LOCAL COLOR CHANGE ---"
-                if "$PYTHON" "$POISSON_SCRIPT" "$source_file" "$mask_file" --mode local_color_change --output "${out_dir}/result_color_change.png"; then
-                    echo "✓ Local Color Change completato"
+                echo "--- LOCAL COLOR CHANGE (gray_background) ---"
+                if "$PYTHON" "$POISSON_SCRIPT" "$source_file" "$mask_file" \
+                    --mode local_color_change \
+                    --color-mode gray_background \
+                    --output "${out_dir}/result_gray_background.png"; then
+                    echo "✓ gray_background completato"
                     ((success++)) || true
                 else
-                    echo "✗ Local Color Change FALLITO"
+                    echo "✗ gray_background FALLITO"
                     ((fail++)) || true
                 fi
+
+                echo "--- LOCAL COLOR CHANGE (multiply_rgb) ---"
+                if "$PYTHON" "$POISSON_SCRIPT" "$source_file" "$mask_file" \
+                    --mode local_color_change \
+                    --color-mode multiply_rgb \
+                    --rgb-factors 1.5 0.5 0.5 \
+                    --output "${out_dir}/result_multiply_rgb.png"; then
+                    echo "✓ multiply_rgb completato"
+                    ((success++)) || true
+                else
+                    echo "✗ multiply_rgb FALLITO"
+                    ((fail++)) || true
+                fi
+
+                echo "--- LOCAL COLOR CHANGE (color_change - hue shifts) ---"
+                # Array degli shift da testare
+                hue_values=(60 120 180 240)
+                for hue in "${hue_values[@]}"; do
+                    if "$PYTHON" "$POISSON_SCRIPT" "$source_file" "$mask_file" \
+                        --mode local_color_change \
+                        --color-mode color_change \
+                        --change-hue "$hue" \
+                        --output "${out_dir}/result_color_change_hue${hue}.png"; then
+                        echo "✓ color_change (hue=${hue}) completato"
+                        ((success++)) || true
+                    else
+                        echo "✗ color_change (hue=${hue}) FALLITO"
+                        ((fail++)) || true
+                    fi
+                done
             else
                 echo "⚠ File mancanti per Local Color Change (serve source e mask) - saltato."
             fi
@@ -178,9 +211,18 @@ for tech_dir in "$DATA_DIR"/*/; do
             fi
 
         elif [[ "$tech_type" == "flattening" ]]; then
-            if [[ -n "$target_file" && -n "$mask_file" ]]; then
+            if [[ -n "$source_file" && -n "$mask_file" ]]; then
                 echo "--- TEXTURE FLATTENING ---"
-                if "$PYTHON" "$POISSON_SCRIPT" "$target_file" "$mask_file" --mode texture_flattening --output "${out_dir}/result_flattening.png"; then
+                edge_opt=""
+                edge_file=""
+                for f in "$test_dir"edge.png "$test_dir"edge.jpg "$test_dir"edge.jpeg; do
+                    [[ -f "$f" ]] && edge_file="$f" && break
+                done
+                if [[ -n "$edge_file" ]]; then
+                    edge_opt="--edge-image $edge_file"
+                fi
+
+                if "$PYTHON" "$POISSON_SCRIPT" "$source_file" "$mask_file" --mode texture_flattening $edge_opt --output "${out_dir}/result_flattening.png"; then
                     echo "✓ Texture Flattening completato"
                     ((success++)) || true
                 else
@@ -188,7 +230,7 @@ for tech_dir in "$DATA_DIR"/*/; do
                     ((fail++)) || true
                 fi
             else
-                echo "⚠ File mancanti per Texture Flattening (serve target e mask) - saltato."
+                echo "⚠ File mancanti per Texture Flattening (serve source e mask) - saltato."
             fi
         fi
 

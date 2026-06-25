@@ -19,9 +19,9 @@ import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
 from argparse import ArgumentParser
-
+from utils import lab_to_rgb
 from solver import PoissonInterpolationSolver
-from utils import get_masked_values
+
 
 try:
     from skimage.feature import canny
@@ -39,7 +39,7 @@ class TextureFlatteningSolver(PoissonInterpolationSolver):
     """
     def __init__(self, target_path, mask_path, solver='spsolve', color_space='RGB',
                  sigma=1.0, low_threshold=None, high_threshold=None, edge_mode='or',
-                 edge_image_path=None):
+                 edge_image_path=None, luminance_only=False):
         """
         Inizializza il solutore caricando l'immagine target e la maschera.
         
@@ -53,13 +53,18 @@ class TextureFlatteningSolver(PoissonInterpolationSolver):
             high_threshold: soglia alta per Canny
             edge_mode:      'or', 'and' o 'pixel' per definire quando un arco <p,q> tocca un edge
             edge_image_path: percorso opzionale a un'immagine di edge pre-calcolata (se fornito, ignora Canny)
+            luminance_only: Se True, applica flattening solo al canale L (luminance)
         """
         if not HAS_SKIMAGE:
             raise ImportError(
                 "scikit-image non è installato o non è disponibile in questo ambiente. "
                 "Assicurati di usare l'ambiente virtuale corretto."
             )
-            
+        
+        self.luminance_only = luminance_only
+        # Se luminance_only, forza Lab ma lo useremo solo per L
+        if luminance_only:
+            color_space = 'Lab'
         # In texture flattening, non c'è una sorgente esterna. 
         # Passiamo target_path sia per la sorgente che per il target.
         super().__init__(
@@ -75,6 +80,11 @@ class TextureFlatteningSolver(PoissonInterpolationSolver):
         self.edge_mode = edge_mode
         self.edge_image_path = edge_image_path
         
+        if luminance_only:
+            # Salva i canali a,b originali
+            self.original_a = self.target[..., 1].copy()
+            self.original_b = self.target[..., 2].copy()
+
         # Calcola o carica la mappa binaria degli edge M
         if edge_image_path is not None:
             print(f"Caricamento edge map da file: {edge_image_path}")
@@ -213,29 +223,43 @@ class TextureFlatteningSolver(PoissonInterpolationSolver):
         return result_ch
         
     def solve(self):
-        """
-        Esegue il texture flattening su tutti i canali colore dell'immagine.
-        """
-        print(f"\nEsecuzione Texture Flattening per {self.n_channels} canali "
-              f"({self.color_space}, sigma={self.sigma}, edge_mode={self.edge_mode}, solver={self.solver_type})...")
-              
-        channels_out = []
-        for c, name in enumerate(self.channel_names):
-            ch_result = self._solve_channel(
-                self.target[..., c],
-                name
-            )
-            channels_out.append(ch_result)
+        if self.luminance_only:
+            # Risolve SOLO il canale L
+            result_L = self._solve_channel(self.target[..., 0], 'Luminance')
             
-        result = np.stack(channels_out, axis=-1)
-        
-        # Converte LAB in RGB se necessario
-        if self.color_space == 'LAB':
-            from utils import lab_to_rgb
-            result = lab_to_rgb(result)
+            # Ricostruisce Lab
+            result_lab = self.target.copy()
+            result_lab[..., 0] = result_L
+            result_lab[..., 1] = self.original_a
+            result_lab[..., 2] = self.original_b
             
-        print("✓ Texture Flattening completato!")
-        return result
+            result = lab_to_rgb(result_lab)
+            print("✓ Texture Flattening su LUMINANCE completato!")
+            return result
+        else:
+            """
+            Esegue il texture flattening su tutti i canali colore dell'immagine.
+            """
+            print(f"\nEsecuzione Texture Flattening per {self.n_channels} canali "
+                f"({self.color_space}, sigma={self.sigma}, edge_mode={self.edge_mode}, solver={self.solver_type})...")
+                
+            channels_out = []
+            for c, name in enumerate(self.channel_names):
+                ch_result = self._solve_channel(
+                    self.target[..., c],
+                    name
+                )
+                channels_out.append(ch_result)
+                
+            result = np.stack(channels_out, axis=-1)
+            
+            # Converte LAB in RGB se necessario
+            if self.color_space == 'LAB':
+                
+                result = lab_to_rgb(result)
+                
+            print("✓ Texture Flattening completato!")
+            return result
 
 
 def main():
@@ -260,6 +284,8 @@ def main():
                         help='Come considerare gli edge tra pixel vicini (default: or)')
     parser.add_argument('--edge-image', default=None,
                         help='Percorso a un\'immagine di edge pre-calcolata (se fornito, ignora Canny)')
+    parser.add_argument('--luminance_only', action='store_true',
+                    help='Applica flattening solo sulla luminance (canale L)')
     parser.add_argument('--output', default='flattening_result.png',
                         help='File output (immagine composita)')
                         
@@ -283,7 +309,6 @@ def main():
     result = solver.solve()
     
     # Prepara immagini per la visualizzazione
-    from utils import lab_to_rgb
     tgt_vis = solver.target if solver.color_space == 'RGB' else lab_to_rgb(solver.target)
     
     # Salva risultati individuali

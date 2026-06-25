@@ -55,11 +55,38 @@ def lab_to_rgb(lab):
 # ============================================================================
 
 def compute_laplacian(img):
-    """Calcola Laplaciano: ∆f = ∂²f/∂x² + ∂²f/∂y²."""
-    kernel = np.array([[0, 1, 0], [1, -4, 1], [0, 1, 0]])
-    import scipy.signal
-    laplacian = scipy.signal.fftconvolve(img, kernel, mode='same')
-    return laplacian
+    """Calcola il Laplaciano discreto puro con vicinato troncato ai bordi dell'immagine.
+    Implementa esattamente la divergenza del gradiente sul reticolo discreto.
+    """
+    if img.ndim == 3:
+        h, w, c = img.shape
+        laplacian = np.zeros_like(img)
+        for i in range(c):
+            laplacian[..., i] = compute_laplacian(img[..., i])
+        return laplacian
+
+    h, w = img.shape
+    neighbor_sum = np.zeros((h, w), dtype=img.dtype)
+    Np = np.zeros((h, w), dtype=img.dtype)
+
+    # Vicino sinistro (sposta img a destra)
+    neighbor_sum[:, 1:] += img[:, :-1]
+    Np[:, 1:] += 1
+
+    # Vicino destro (sposta img a sinistra)
+    neighbor_sum[:, :-1] += img[:, 1:]
+    Np[:, :-1] += 1
+
+    # Vicino superiore (sposta img in basso)
+    neighbor_sum[1:, :] += img[:-1, :]
+    Np[1:, :] += 1
+
+    # Vicino inferiore (sposta img in alto)
+    neighbor_sum[:-1, :] += img[1:, :]
+    Np[:-1, :] += 1
+
+    # ∆g_p = Σ_{q ∈ N_p} g_q - |N_p| * g_p
+    return neighbor_sum - Np * img
 
 
 def compute_mixed_laplacian(source, target, mask):

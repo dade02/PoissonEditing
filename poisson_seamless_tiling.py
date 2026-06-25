@@ -2,15 +2,12 @@ import os
 import numpy as np
 from PIL import Image
 from argparse import ArgumentParser
-import scipy.sparse.linalg
-from scipy.sparse import linalg as sp_linalg
-
-import utils
+from solver import PoissonInterpolationSolver
 
 
-class PoissonSeamlessTiling:
+class PoissonSeamlessTiling(PoissonInterpolationSolver):
     """
-    Implements seamless tiling using Poisson editing.
+    Implements seamless tiling using Poisson editing by reusing PoissonInterpolationSolver.
     
     When the domain Ω is rectangular, its content can be made tileable by 
     enforcing periodic boundary conditions with the Poisson solver.
@@ -42,120 +39,59 @@ class PoissonSeamlessTiling:
         self.img_h, self.img_w = self.img.shape[:2]
         self.is_color = len(self.img.shape) == 3
 
-        self.mask = np.ones((self.img_h, self.img_w), dtype=np.float64)
-        self.inner_mask, self.boundary_mask = utils.process_mask(self.mask)
+        # Create a mask of all ones
+        mask = np.ones((self.img_h, self.img_w), dtype=np.float64)
 
-        self.pixel_ids = utils.get_pixel_ids(self.mask)
-        self.inner_ids = utils.get_masked_values(self.pixel_ids, self.inner_mask).flatten()
-        self.boundary_ids = utils.get_masked_values(self.pixel_ids, self.boundary_mask).flatten()
-        self.mask_ids = utils.get_masked_values(self.pixel_ids, self.mask).flatten()
-
-        self.inner_pos = np.searchsorted(self.mask_ids, self.inner_ids)
-        self.boundary_pos = np.searchsorted(self.mask_ids, self.boundary_ids)
-        self.mask_pos = np.searchsorted(self.pixel_ids.flatten(), self.mask_ids)
-
-        self.solver_name = solver
-        self.solver = getattr(scipy.sparse.linalg, solver)
-
-        self.A = self._construct_A_matrix()
-
-        if solver == 'spsolve':
-            self.A_factored = sp_linalg.splu(self.A.tocsc())
-            self.use_factored = True
-        else:
-            self.use_factored = False
-
-    def _construct_A_matrix(self):
-        A = scipy.sparse.lil_matrix((len(self.mask_ids), len(self.mask_ids)))
-
-        for i, pixel_id in enumerate(self.inner_ids):
-            row, col = divmod(pixel_id, self.img_w)
-            center_pos = self.inner_pos[i]
-            A[center_pos, center_pos] = -4
-
-            neighbors = [
-                (row - 1, col, pixel_id - self.img_w),
-                (row + 1, col, pixel_id + self.img_w),
-                (row, col - 1, pixel_id - 1),
-                (row, col + 1, pixel_id + 1),
-            ]
-
-            for n_row, n_col, n_pixel_id in neighbors:
-                if 0 <= n_row < self.img_h and 0 <= n_col < self.img_w:
-                    n_pos = np.searchsorted(self.mask_ids, n_pixel_id)
-                    if n_pos < len(self.mask_ids) and self.mask_ids[n_pos] == n_pixel_id:
-                        A[center_pos, n_pos] = 1
-
-        A[self.boundary_pos, self.boundary_pos] = 1
-        return A.tocsr()
-
-    def _get_periodic_boundary_values(self, channel_idx):
+        # Construct target boundary image with periodic values
+        target = np.zeros_like(self.img)
         if self.is_color:
-            img_channel = self.img[..., channel_idx]
+            for c in range(3):
+                target[..., c] = self._compute_periodic_target_channel(self.img[..., c])
         else:
-            img_channel = self.img
+            target = self._compute_periodic_target_channel(self.img)
 
-        boundary_values = np.zeros(len(self.boundary_ids))
+        # Call parent constructor to setup matrix A and properties
+        super().__init__(
+            source_path=self.img,
+            target_path=target,
+            mask_path=mask,
+            solver=solver,
+            color_space='RGB',
+            mixed=False
+        )
 
-        for idx, pixel_id in enumerate(self.boundary_ids):
-            row, col = divmod(pixel_id, self.img_w)
+    def _compute_periodic_target_channel(self, img_channel):
+        target_ch = np.zeros_like(img_channel)
 
-            if row == 0:
-                avg_value = 0.5 * (img_channel[0, col] + img_channel[-1, col])
-                boundary_values[idx] = avg_value
-            elif row == self.img_h - 1:
-                avg_value = 0.5 * (img_channel[-1, col] + img_channel[0, col])
-                boundary_values[idx] = avg_value
-            elif col == 0:
-                avg_value = 0.5 * (img_channel[row, 0] + img_channel[row, -1])
-                boundary_values[idx] = avg_value
-            elif col == self.img_w - 1:
-                avg_value = 0.5 * (img_channel[row, -1] + img_channel[row, 0])
-                boundary_values[idx] = avg_value
-            else:
-                boundary_values[idx] = img_channel.flat[pixel_id]
+        # Corner average
+        corner_avg = 0.25 * (
+            img_channel[0, 0] +
+            img_channel[0, -1] +
+            img_channel[-1, 0] +
+            img_channel[-1, -1]
+        )
 
-        return boundary_values
+        # Set corners
+        target_ch[0, 0] = corner_avg
+        target_ch[0, -1] = corner_avg
+        target_ch[-1, 0] = corner_avg
+        target_ch[-1, -1] = corner_avg
 
-    def construct_b(self, gradients, boundary_values):
-        b = np.zeros(len(self.mask_ids))
-        b[self.inner_pos] = utils.get_masked_values(gradients, self.inner_mask).flatten()
-        b[self.boundary_pos] = boundary_values
-        return b
+        # Set top/bottom borders (excluding corners)
+        target_ch[0, 1:-1] = 0.5 * (img_channel[0, 1:-1] + img_channel[-1, 1:-1])
+        target_ch[-1, 1:-1] = target_ch[0, 1:-1]
 
-    def solve_system(self, b):
-        if self.use_factored:
-            x = self.A_factored.solve(b)
-        else:
-            x = self.solver(self.A, b)
-            if isinstance(x, tuple):
-                x = x[0]
-        return x
+        # Set left/right borders (excluding corners)
+        target_ch[1:-1, 0] = 0.5 * (img_channel[1:-1, 0] + img_channel[1:-1, -1])
+        target_ch[1:-1, -1] = target_ch[1:-1, 0]
 
-    def compute_gradients(self, channel_data):
-        return utils.compute_laplacian(channel_data)
-
-    def apply_seamless_tiling(self, channel_data, channel_idx):
-        gradients = self.compute_gradients(channel_data)
-        boundary_values = self._get_periodic_boundary_values(channel_idx)
-        b = self.construct_b(gradients, boundary_values)
-        x = self.solve_system(b)
-
-        tiled = np.zeros_like(channel_data).flatten()
-        tiled[self.mask_pos] = x
-        tiled = tiled.reshape(channel_data.shape)
-        return np.clip(tiled, 0, 1)
+        return target_ch
 
     def generate_tileable_image(self):
-        if self.is_color:
-            result = []
-            for c in range(3):
-                channel_result = self.apply_seamless_tiling(self.img[..., c], c)
-                result.append(channel_result)
-            tileable = np.dstack(result)
-        else:
-            tileable = self.apply_seamless_tiling(self.img, 0)
-
+        """
+        Generates the tileable image using the Poisson solver.
+        """
+        tileable = self.solve(mixed=False)
         tileable = (tileable * 255).astype(np.uint8)
         return tileable
 
@@ -179,8 +115,8 @@ if __name__ == '__main__':
     tileable = tiler.generate_tileable_image()
 
     if args.output is None:
-        base_name = os.path.splitext(os.path.basename(args.input))[0]
-        args.output = f'{base_name}_seamless_tiling.png'
+         base_name = os.path.splitext(os.path.basename(args.input))[0]
+         args.output = f'{base_name}_seamless_tiling.png'
 
     Image.fromarray(tileable).save(args.output)
     print(f'Seamless tiling saved to: {args.output}')
