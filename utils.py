@@ -139,3 +139,32 @@ def get_pixel_ids(img_shape):
 def get_masked_values(values, mask):
     """Estrae valori dove mask == 1."""
     return values[mask > 0]
+
+def shift_image(img, dy, dx):
+    """Sposta l'immagine img di dy righe e dx colonne, riempiendo con zero."""
+    if img.ndim == 3:
+        h, w, c = img.shape
+        shifted = np.zeros_like(img)
+    else:
+        h, w = img.shape
+        shifted = np.zeros_like(img)
+        
+    # Target bounds (where to paste in the new shifted image)
+    ty1 = max(0, dy)
+    ty2 = min(h, h + dy)
+    tx1 = max(0, dx)
+    tx2 = min(w, w + dx)
+    
+    # Source bounds (where to copy from the original image)
+    sy1 = max(0, -dy)
+    sy2 = min(h, h - dy)
+    sx1 = max(0, -dx)
+    sx2 = min(w, w - dx)
+    
+    if ty2 > ty1 and tx2 > tx1 and sy2 > sy1 and sx2 > sx1:
+        if img.ndim == 3:
+            shifted[ty1:ty2, tx1:tx2, :] = img[sy1:sy2, sx1:sx2, :]
+        else:
+            shifted[ty1:ty2, tx1:tx2] = img[sy1:sy2, sx1:sx2]
+            
+    return shifted

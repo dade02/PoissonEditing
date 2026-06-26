@@ -44,7 +44,7 @@ class LocalColorChangeSolver(PoissonInterpolationSolver):
     def __init__(self, source_path, mask_path,
                  solver='spsolve', mode='gray_background',
                  rgb_factors=(1.5, 0.5, 0.5),
-                 change_hue=60.0):
+                 change_hue=60.0, mask_source=None, mask_target=None):
         self.original_rgb = read_image(source_path)
         self.mask = read_image(mask_path, gray=True)
         self.mask = (self.mask > 0.5).astype(np.float64)
@@ -66,7 +66,8 @@ class LocalColorChangeSolver(PoissonInterpolationSolver):
             raise ValueError("Modalità non valida. Usa 'gray_background', 'multiply_rgb' o 'color_change'.")
 
         super().__init__(guidance_rgb, target_rgb, self.mask,
-                         solver=solver, color_space='RGB')
+                         solver=solver, color_space='RGB',
+                         mask_source=mask_source, mask_target=mask_target)
 
     def solve(self):
         print(f"\nEsecuzione Local Color Change (mode={self.mode}, solver={self.solver_type})...")

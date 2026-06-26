@@ -62,9 +62,9 @@ def main():
     parser.add_argument('--illum-mode', default='luminance',
                         choices=['luminance'],
                         help='Modalità per local_illumination_change (default: luminance)')
-    parser.add_argument('--alpha-factor', type=float, default=0.2,
+    parser.add_argument('--alpha-factor', type=float, default=0.1,
                         help='Fattore di moltiplicazione per alpha in Fattal et al. (default: 0.2)')
-    parser.add_argument('--beta', type=float, default=0.5,
+    parser.add_argument('--beta', type=float, default=0.2,
                         help='Esponente beta della trasformazione di Fattal (default: 0.5 per effetti più marcati)')
     parser.add_argument('--rgb-factors', type=float, nargs=3, default=(1.5, 0.5, 0.5),
                     help='Fattori di moltiplicazione per R, G, B (solo per multiply_rgb mode, default: 1.5 0.5 0.5)')
@@ -77,6 +77,10 @@ def main():
                         help='Fattore di scala immagine (solo per seamless_tiling)')
     parser.add_argument('--luminance_only', action='store_true',
                         help='lavora su luminanza nel flattening')
+    parser.add_argument('--mask-source', default=None,
+                        help='Percorso maschera sorgente (opzionale per allineamento)')
+    parser.add_argument('--mask-target', default=None,
+                        help='Percorso maschera target (opzionale per allineamento)')
     parser.add_argument('--output', default='poisson_result.png',
                         help='File output (immagine composita)')
 
@@ -99,12 +103,18 @@ def main():
 
     # Validazione argomenti per modalità
     if exec_mode in ['seamless_cloning', 'mixed_gradient']:
+        if args.mask_source is not None and args.mask_target is not None:
+            if args.mask is None:
+                args.mask = args.mask_target
         if args.mask is None or args.target is None:
             parser.error(f"La modalità '{args.mode}' richiede 3 argomenti posizionali: <source> <target> <mask_image>.")
         source_path = args.source
         target_path = args.target
         mask_path = args.mask
     elif exec_mode == 'texture_flattening':
+        if args.mask_source is not None and args.mask_target is not None:
+            if args.mask is None:
+                args.mask = args.mask_target
         if args.mask is None and args.target is None:
             parser.error(f"La modalità '{args.mode}' richiede almeno 2 argomenti: <target> <mask_image>.")
         if args.mask is None:
@@ -116,6 +126,9 @@ def main():
             target_path = args.target
             mask_path = args.mask
     elif exec_mode in ['local_illumination_change', 'local_color_change']:
+        if args.mask_source is not None and args.mask_target is not None:
+            if args.mask is None:
+                args.mask = args.mask_target
         if args.mask is None and args.target is None:
             parser.error(f"La modalità '{args.mode}' richiede almeno 2 argomenti: <source> <mask_image>.")
         if args.mask is None:
@@ -153,7 +166,9 @@ def main():
             source_path, target_path, mask_path,
             solver=args.solver,
             color_space=args.colorspace,
-            mixed=False
+            mixed=False,
+            mask_source=args.mask_source,
+            mask_target=args.mask_target
         )
         result = solver.solve(mixed=False)
 
@@ -197,7 +212,9 @@ def main():
             source_path, target_path, mask_path,
             solver=args.solver,
             color_space=args.colorspace,
-            mixed=True
+            mixed=True,
+            mask_source=args.mask_source,
+            mask_target=args.mask_target
         )
         result = solver.solve(mixed=True)
 
@@ -247,7 +264,9 @@ def main():
             high_threshold=args.high_threshold,
             edge_mode=args.edge_mode,
             edge_image_path=args.edge_image,
-            luminance_only=args.luminance_only
+            luminance_only=args.luminance_only,
+            mask_source=args.mask_source,
+            mask_target=args.mask_target
         )
         result = solver.solve()
 
@@ -293,6 +312,9 @@ def main():
             mode=args.illum_mode,
             sigma=args.sigma,
             beta=args.beta,
+            alpha_factor= args.alpha_factor,
+            mask_source=args.mask_source,
+            mask_target=args.mask_target
         )
         result = solver.solve()
 
@@ -332,7 +354,9 @@ def main():
             solver=args.solver,
             mode=args.color_mode,
             rgb_factors=args.rgb_factors,
-            change_hue=args.change_hue
+            change_hue=args.change_hue,
+            mask_source=args.mask_source,
+            mask_target=args.mask_target
         )
         result = solver.solve()
 

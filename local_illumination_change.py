@@ -148,7 +148,7 @@ class LocalIlluminationChangeSolver(PoissonInterpolationSolver):
     def __init__(self, source_path, mask_path,
                  solver='spsolve', grayscale=False,
                  mode='luminance', sigma=0.0, beta=0.2,
-                 alpha_factor=0.2):
+                 alpha_factor=0.2, mask_source=None, mask_target=None):
         """
         Parameters
         ----------
@@ -183,7 +183,8 @@ class LocalIlluminationChangeSolver(PoissonInterpolationSolver):
             guidance = self.original_rgb.copy()
 
         super().__init__(guidance, guidance, self.mask,
-                         solver=solver, color_space='RGB')
+                         solver=solver, color_space='RGB',
+                         mask_source=mask_source, mask_target=mask_target)
 
     # ------------------------------------------------------------------
 

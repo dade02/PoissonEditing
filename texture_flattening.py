@@ -39,7 +39,8 @@ class TextureFlatteningSolver(PoissonInterpolationSolver):
     """
     def __init__(self, target_path, mask_path, solver='spsolve', color_space='RGB',
                  sigma=1.0, low_threshold=None, high_threshold=None, edge_mode='or',
-                 edge_image_path=None, luminance_only=False):
+                 edge_image_path=None, luminance_only=False,
+                 mask_source=None, mask_target=None):
         """
         Inizializza il solutore caricando l'immagine target e la maschera.
         
@@ -54,6 +55,8 @@ class TextureFlatteningSolver(PoissonInterpolationSolver):
             edge_mode:      'or', 'and' o 'pixel' per definire quando un arco <p,q> tocca un edge
             edge_image_path: percorso opzionale a un'immagine di edge pre-calcolata (se fornito, ignora Canny)
             luminance_only: Se True, applica flattening solo al canale L (luminance)
+            mask_source:    percorso maschera sorgente opzionale
+            mask_target:    percorso maschera target opzionale
         """
         if not HAS_SKIMAGE:
             raise ImportError(
@@ -72,7 +75,9 @@ class TextureFlatteningSolver(PoissonInterpolationSolver):
             target_path=target_path,
             mask_path=mask_path,
             solver=solver,
-            color_space=color_space
+            color_space=color_space,
+            mask_source=mask_source,
+            mask_target=mask_target
         )
         self.sigma = sigma
         self.low_threshold = low_threshold

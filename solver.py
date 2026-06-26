@@ -54,6 +54,7 @@ from utils import (
     read_image, rgb_to_lab, lab_to_rgb,
     compute_laplacian, compute_mixed_laplacian,
     process_mask, get_pixel_ids, get_masked_values,
+    shift_image,
 )
 
 
@@ -70,7 +71,8 @@ class PoissonInterpolationSolver:
     """
 
     def __init__(self, source_path, target_path, mask_path,
-                 solver='spsolve', color_space='RGB', mixed=False):
+                 solver='spsolve', color_space='RGB', mixed=False,
+                 mask_source=None, mask_target=None):
         """
         Inizializza il solutore caricando immagini da file.
 
@@ -81,6 +83,8 @@ class PoissonInterpolationSolver:
             solver:       'spsolve' (scipy LU) o 'multigrid' (pyamg)
             color_space:  'RGB' (default) o 'Lab' (CIE-Lab)
             mixed:       True to use mixed gradient (v_mixed) instead of simple Laplacian.
+            mask_source:  percorso o array maschera sorgente per allineamento
+            mask_target:  percorso o array maschera target per allineamento
         """
         self.use_mixed = mixed
         self.color_space = color_space.upper()   
@@ -101,6 +105,33 @@ class PoissonInterpolationSolver:
             mask_gray = mask_path
         else:
             mask_gray = read_image(mask_path, gray=True)
+
+        # Check if two masks are provided
+        if mask_source is not None and mask_target is not None:
+            if isinstance(mask_source, np.ndarray):
+                m_src = mask_source
+            else:
+                m_src = read_image(mask_source, gray=True)
+                
+            if isinstance(mask_target, np.ndarray):
+                m_tgt = mask_target
+            else:
+                m_tgt = read_image(mask_target, gray=True)
+            
+            pos_src = np.argwhere(m_src > 0.5)
+            pos_tgt = np.argwhere(m_tgt > 0.5)
+            
+            if len(pos_src) > 0 and len(pos_tgt) > 0:
+                cy_src, cx_src = np.mean(pos_src, axis=0)
+                cy_tgt, cx_tgt = np.mean(pos_tgt, axis=0)
+                dy = int(round(cy_tgt - cy_src))
+                dx = int(round(cx_tgt - cx_src))
+                
+                source_rgb = shift_image(source_rgb, dy, dx)
+                mask_gray = m_tgt
+                print(f"  [PoissonInterpolationSolver] Centroids aligned: shift dy={dy}, dx={dx}")
+            else:
+                print("  [PoissonInterpolationSolver] Warning: one of the masks is empty, alignment skipped.")
 
         print(f"  Source:  {getattr(source_path, 'shape', source_rgb.shape)} {source_rgb.shape}")
         print(f"  Target:  {getattr(target_path, 'shape', target_rgb.shape)} {target_rgb.shape}")
