@@ -34,19 +34,12 @@ gets compressed more aggressively).
 import numpy as np
 
 from solver import PoissonInterpolationSolver
-from utils import read_image
+from utils import read_image, rgb2gray
 
 
 # ---------------------------------------------------------------------------
 # Utilities
 # ---------------------------------------------------------------------------
-
-def rgb2gray(img: np.ndarray) -> np.ndarray:
-    """Convert an RGB image (H,W,3) to grayscale (H,W)
-    using ITU-R BT.601 luminance coefficients."""
-    if img.ndim == 2:
-        return img
-    return np.dot(img[..., :3], [0.2989, 0.5870, 0.1140])
 
 
 # ---------------------------------------------------------------------------

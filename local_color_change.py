@@ -6,20 +6,7 @@ from argparse import ArgumentParser
 from matplotlib.colors import rgb_to_hsv, hsv_to_rgb
 
 from solver import PoissonInterpolationSolver
-from utils import read_image
-
-
-def rgb2gray(img):
-    """Converte RGB in scala di grigi usando la luminanza standard."""
-    if img.ndim == 2:
-        return img
-    return np.dot(img[..., :3], [0.2989, 0.5870, 0.1140])
-
-
-def build_gray_rgb(img_rgb):
-    """Costruisce un'immagine RGB grigia a partire da un'immagine RGB."""
-    gray = rgb2gray(img_rgb)
-    return np.stack([gray, gray, gray], axis=-1)
+from utils import read_image, rgb2gray, build_gray_rgb
 
 
 def apply_rgb_multiply(img_rgb, factors):

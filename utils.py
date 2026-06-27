@@ -50,6 +50,19 @@ def lab_to_rgb(lab):
     return np.clip(rgb, 0, 1)
 
 
+def rgb2gray(img):
+    """Converte RGB in scala di grigi usando la luminanza standard."""
+    if img.ndim == 2:
+        return img
+    return np.dot(img[..., :3], [0.2989, 0.5870, 0.1140])
+
+
+def build_gray_rgb(img_rgb):
+    """Costruisce un'immagine RGB grigia a partire da un'immagine RGB."""
+    gray = rgb2gray(img_rgb)
+    return np.stack([gray, gray, gray], axis=-1)
+
+
 # ============================================================================
 # GRADIENT & LAPLACIAN COMPUTATION
 # ============================================================================

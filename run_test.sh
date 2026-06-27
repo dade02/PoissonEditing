@@ -200,63 +200,301 @@ for tech_dir in "$DATA_DIR"/*/; do
             fi
 
         elif [[ "$tech_type" == "cloning_mixed" ]]; then
-            if [[ "$test_name" == "test6" ]]; then
-                # ---------- CASO SPECIALE: test6 (due source + due mask) ----------
-                source1_file=$(find_file "source1" "$test_dir")
-                mask1_file=$(find_file "mask1" "$test_dir")
-                source2_file=$(find_file "source2" "$test_dir")
-                mask2_file=$(find_file "mask2" "$test_dir")
-                # target_file già disponibile
+            if [[ "$test_name" == "test0" ]]; then
+                # ---------- CASO SPECIALE: test0 (3 step sequenziali con source1/source2 e mask_source/mask_target specifiche) ----------
+                source1_file=$(find_file "source1" "$test_dir") || source1_file=""
+                source2_file=$(find_file "source2" "$test_dir") || source2_file=""
 
-                echo "  Source1: $source1_file"
-                echo "  Mask1:   $mask1_file"
-                echo "  Source2: $source2_file"
-                echo "  Mask2:   $mask2_file"
+                mask_source1=""
+                mask_target1=""
+                mask_source2=""
+                mask_target2=""
+                mask_source3=""
+                mask_target3=""
+
+                for ext in png jpg jpeg; do
+                    if [[ -f "${test_dir}mask_source1.${ext}" ]]; then
+                        mask_source1="${test_dir}mask_source1.${ext}"
+                    fi
+                    if [[ -f "${test_dir}mask_target1.${ext}" ]]; then
+                        mask_target1="${test_dir}mask_target1.${ext}"
+                    fi
+                    if [[ -f "${test_dir}mask_source2.${ext}" ]]; then
+                        mask_source2="${test_dir}mask_source2.${ext}"
+                    fi
+                    if [[ -f "${test_dir}mask_target2.${ext}" ]]; then
+                        mask_target2="${test_dir}mask_target2.${ext}"
+                    fi
+                    if [[ -f "${test_dir}mask_source3.${ext}" ]]; then
+                        mask_source3="${test_dir}mask_source3.${ext}"
+                    fi
+                    if [[ -f "${test_dir}mask_target3.${ext}" ]]; then
+                        mask_target3="${test_dir}mask_target3.${ext}"
+                    fi
+                done
+
                 echo "  Target:  $target_file"
+                [[ -n "$source1_file" ]] && echo "  Source1: $(basename "$source1_file")"
+                [[ -n "$source2_file" ]] && echo "  Source2: $(basename "$source2_file")"
+                [[ -n "$mask_source1" ]] && echo "  Mask Source1: $(basename "$mask_source1")"
+                [[ -n "$mask_target1" ]] && echo "  Mask Target1: $(basename "$mask_target1")"
+                [[ -n "$mask_source2" ]] && echo "  Mask Source2: $(basename "$mask_source2")"
+                [[ -n "$mask_target2" ]] && echo "  Mask Target2: $(basename "$mask_target2")"
+                [[ -n "$mask_source3" ]] && echo "  Mask Source3: $(basename "$mask_source3")"
+                [[ -n "$mask_target3" ]] && echo "  Mask Target3: $(basename "$mask_target3")"
 
-                if [[ -n "$source1_file" && -n "$mask1_file" && -n "$source2_file" && -n "$mask2_file" && -n "$target_file" ]]; then
-                    echo "--- TEST6: Seamless Cloning (two-step) ---"
-                    intermediate="${out_dir}/intermediate_cloning.png"
-                    final="${out_dir}/result_cloning.png"
-                    if "$PYTHON" "$POISSON_SCRIPT" "$source1_file" "$target_file" "$mask1_file" \
-                        --mode seamless_cloning  --output "$intermediate"; then
-                        echo "  ✓ Primo step (seamless) completato"
-                        if "$PYTHON" "$POISSON_SCRIPT" "$source2_file" "${intermediate%.png}_cloning.png" "$mask2_file" \
-                            --mode seamless_cloning --output "$final"; then
-                            echo "  ✓ Secondo step (seamless) completato → ${final}"
-                            ((success++)) || true
-                        else
-                            echo "  ✗ Secondo step (seamless) FALLITO"
-                            ((fail++)) || true
-                        fi
-                    else
-                        echo "  ✗ Primo step (seamless) FALLITO"
-                        ((fail++)) || true
-                    fi
-
-                    echo "--- TEST6: Mixed Gradient Cloning (two-step) ---"
-                    intermediate="${out_dir}/intermediate_mixed.png"
-                    final="${out_dir}/result_mixed.png"
-                    if "$PYTHON" "$POISSON_SCRIPT" "$source1_file" "$target_file" "$mask1_file" \
-                        --mode mixed_gradient --output "$intermediate"; then
-                        echo "  ✓ Primo step (mixed) completato"
-                        if "$PYTHON" "$POISSON_SCRIPT" "$source2_file" "${intermediate%.png}_mixed.png" "$mask2_file" \
-                            --mode mixed_gradient --output "$final"; then
-                            echo "  ✓ Secondo step (mixed) completato → ${final}"
-                            ((success++)) || true
-                        else
-                            echo "  ✗ Secondo step (mixed) FALLITO"
-                            ((fail++)) || true
-                        fi
-                    else
-                        echo "  ✗ Primo step (mixed) FALLITO"
-                        ((fail++)) || true
-                    fi
+                if [[ -z "$target_file" || -z "$source1_file" || -z "$source2_file" || -z "$mask_source1" || -z "$mask_target1" || -z "$mask_source2" || -z "$mask_target2" || -z "$mask_source3" || -z "$mask_target3" ]]; then
+                    echo "⚠ File mancanti per test0 - serve:"
+                    echo "    source1, source2, target"
+                    echo "    mask_source1, mask_target1, mask_source2, mask_target2, mask_source3, mask_target3"
+                    echo "  Saltato."
                 else
-                    echo "⚠ File mancanti per test6 (servono source1, mask1, source2, mask2, target) - saltato."
+                    echo "--- TEST0: Seamless Cloning sequenziale 3 step ---"
+                    current_target="$target_file"
+                    success_cloning=true
+
+                    step1_output="${out_dir}/prodotto.png"
+                    step2_output="${out_dir}/prodotto2.png"
+                    final_output="${out_dir}/prodotto_finale.png"
+
+                    echo "  -> Step 1: source1 + mask_source1/mask_target1 -> prodotto"
+                    if "$PYTHON" "$POISSON_SCRIPT" "$source1_file" "$current_target" "$mask_target1" \
+                        --mask-source "$mask_source1" --mask-target "$mask_target1" \
+                        --mode seamless_cloning --output "$step1_output"; then
+                        current_target="${step1_output%.png}_cloning.png"
+                        echo "    ✓ Step 1 completato"
+                    else
+                        echo "    ✗ Step 1 FALLITO"
+                        success_cloning=false
+                    fi
+
+                    if [[ "$success_cloning" == "true" ]]; then
+                        echo "  -> Step 2: source2 + mask_source2/mask_target2 -> prodotto2"
+                        if "$PYTHON" "$POISSON_SCRIPT" "$source2_file" "$current_target" "$mask_target2" \
+                            --mask-source "$mask_source2" --mask-target "$mask_target2" \
+                            --mode seamless_cloning --output "$step2_output"; then
+                            current_target="${step2_output%.png}_cloning.png"
+                            echo "    ✓ Step 2 completato"
+                        else
+                            echo "    ✗ Step 2 FALLITO"
+                            success_cloning=false
+                        fi
+                    fi
+
+                    if [[ "$success_cloning" == "true" ]]; then
+                        echo "  -> Step 3: source2 + mask_source3/mask_target3 -> prodotto_finale"
+                        if "$PYTHON" "$POISSON_SCRIPT" "$source2_file" "$current_target" "$mask_target3" \
+                            --mask-source "$mask_source3" --mask-target "$mask_target3" \
+                            --mode seamless_cloning --output "$final_output"; then
+                            current_target="$final_output"
+                            echo "    ✓ Step 3 completato"
+                        else
+                            echo "    ✗ Step 3 FALLITO"
+                            success_cloning=false
+                        fi
+                    fi
+
+                    if [[ "$success_cloning" == "true" ]]; then
+                        echo "✓ Seamless Cloning sequenziale completato: risultato finale -> $final_output"
+                        ((success++)) || true
+                    else
+                        echo "✗ Seamless Cloning sequenziale FALLITO"
+                        ((fail++)) || true
+                    fi
+
+                    echo "--- TEST0: Mixed Gradient sequenziale 3 step ---"
+                    current_target="$target_file"
+                    success_mixed=true
+
+                    step1_mixed_output="${out_dir}/prodotto_mixed.png"
+                    step2_mixed_output="${out_dir}/prodotto2_mixed.png"
+                    final_mixed_output="${out_dir}/prodotto_finale_mixed.png"
+
+                    echo "  -> Step 1: source1 + mask_source1/mask_target1 -> prodotto_mixed"
+                    if "$PYTHON" "$POISSON_SCRIPT" "$source1_file" "$current_target" "$mask_target1" \
+                        --mask-source "$mask_source1" --mask-target "$mask_target1" \
+                        --mode mixed_gradient --output "$step1_mixed_output"; then
+                        current_target="${step1_mixed_output%.png}_mixed.png"
+                        echo "    ✓ Step 1 completato"
+                    else
+                        echo "    ✗ Step 1 FALLITO"
+                        success_mixed=false
+                    fi
+
+                    if [[ "$success_mixed" == "true" ]]; then
+                        echo "  -> Step 2: source2 + mask_source2/mask_target2 -> prodotto2_mixed"
+                        if "$PYTHON" "$POISSON_SCRIPT" "$source2_file" "$current_target" "$mask_target2" \
+                            --mask-source "$mask_source2" --mask-target "$mask_target2" \
+                            --mode mixed_gradient --output "$step2_mixed_output"; then
+                            current_target="${step2_mixed_output%.png}_mixed.png"
+                            echo "    ✓ Step 2 completato"
+                        else
+                            echo "    ✗ Step 2 FALLITO"
+                            success_mixed=false
+                        fi
+                    fi
+
+                    if [[ "$success_mixed" == "true" ]]; then
+                        echo "  -> Step 3: source2 + mask_source3/mask_target3 -> prodotto_finale_mixed"
+                        if "$PYTHON" "$POISSON_SCRIPT" "$source2_file" "$current_target" "$mask_target3" \
+                            --mask-source "$mask_source3" --mask-target "$mask_target3" \
+                            --mode mixed_gradient --output "$final_mixed_output"; then
+                            current_target="$final_mixed_output"
+                            echo "    ✓ Step 3 completato"
+                        else
+                            echo "    ✗ Step 3 FALLITO"
+                            success_mixed=false
+                        fi
+                    fi
+
+                    if [[ "$success_mixed" == "true" ]]; then
+                        echo "✓ Mixed Gradient sequenziale completato: risultato finale -> $final_mixed_output"
+                        ((success++)) || true
+                    else
+                        echo "✗ Mixed Gradient sequenziale FALLITO"
+                        ((fail++)) || true
+                    fi
                 fi
-            elif [[ "$test_name" == "test0" ]]; then
-                # ---------- CASO SPECIALE: test0 (più maschere target in sequenza) ----------
+            elif [[ "$test_name" == "test9" ]]; then
+                # ---------- CASO SPECIALE: test9 (texture swapping con mask_sourceN/mask_targetN sequenziali) ----------
+                source_masks=()
+                target_masks=()
+                idx=1
+
+                while true; do
+                    src_found=""
+                    tgt_found=""
+
+                    for ext in png jpg jpeg; do
+                        if [[ -f "${test_dir}mask_source${idx}.${ext}" ]]; then
+                            src_found="${test_dir}mask_source${idx}.${ext}"
+                            break
+                        fi
+                    done
+                    for ext in png jpg jpeg; do
+                        if [[ -f "${test_dir}mask_target${idx}.${ext}" ]]; then
+                            tgt_found="${test_dir}mask_target${idx}.${ext}"
+                            break
+                        fi
+                    done
+
+                    if [[ -z "$src_found" && -z "$tgt_found" ]]; then
+                        break
+                    fi
+
+                    if [[ -z "$src_found" || -z "$tgt_found" ]]; then
+                        echo "⚠ Mancano mask_source${idx} o mask_target${idx} in $test_name - saltato."
+                        source_masks=()
+                        target_masks=()
+                        break
+                    fi
+
+                    source_masks+=("$src_found")
+                    target_masks+=("$tgt_found")
+                    ((idx++))
+                done
+
+                if [[ -n "$source_file" && -n "$target_file" && ${#target_masks[@]} -gt 0 ]]; then
+                    echo "--- TEST9: Seamless Cloning sequenziale ---"
+                    current_target="$target_file"
+                    success_cloning=true
+
+                    for ((i=0; i<${#target_masks[@]}; i++)); do
+                        step_output="${out_dir}/result_cloning_step$((i+1)).png"
+                        src_mask="${source_masks[i]}"
+                        tgt_mask="${target_masks[i]}"
+
+                        echo "  -> Step $((i+1)) / ${#target_masks[@]} (seamless) con source: $(basename "$src_mask") target: $(basename "$tgt_mask")"
+                        if "$PYTHON" "$POISSON_SCRIPT" "$source_file" "$current_target" "$tgt_mask" \
+                            --mask-source "$src_mask" --mask-target "$tgt_mask" \
+                            --mode seamless_cloning --output "$step_output"; then
+                            current_target="${step_output%.png}_cloning.png"
+                        else
+                            echo "  ✗ Step $((i+1)) (seamless) FALLITO"
+                            success_cloning=false
+                            break
+                        fi
+
+                        src_mask="${target_masks[i]}"
+                        tgt_mask="${source_masks[i]}"
+                        echo "  -> Step $((i+1)) / ${#target_masks[@]} (seamless) con source: $(basename "$src_mask") target: $(basename "$tgt_mask")"
+                        if "$PYTHON" "$POISSON_SCRIPT" "$source_file" "$current_target" "$tgt_mask" \
+                            --mask-source "$src_mask" --mask-target "$tgt_mask" \
+                            --mode seamless_cloning --output "$step_output"; then
+                            current_target="${step_output%.png}_cloning.png"
+                        else
+                            echo "  ✗ Step $((i+1)) (seamless) FALLITO"
+                            success_cloning=false
+                            break
+                        fi
+
+
+                        
+                    done
+
+                    if [[ "$success_cloning" == "true" ]]; then
+                        echo "✓ Seamless Cloning sequenziale completato: risultato finale -> $current_target"
+                        ((success++)) || true
+                    else
+                        echo "✗ Seamless Cloning sequenziale FALLITO"
+                        ((fail++)) || true
+                    fi
+
+                   
+                else
+                    echo "⚠ File mancanti per test9 (serve source, target e almeno una coppia mask_sourceN/mask_targetN) - saltato."
+                fi
+            elif [[ "$test_name" == "test-1" ]]; then
+                # ---------- CASO SPECIALE: test-1 (texture transfer con mask_source e mask_target singole, con e senza monochrome transfer) ----------
+                mask_source_file=""
+                mask_target_file=""
+
+                for ext in png jpg jpeg; do
+                    if [[ -f "${test_dir}mask_source.${ext}" ]]; then
+                        mask_source_file="${test_dir}mask_source.${ext}"
+                        break
+                    fi
+                done
+                for ext in png jpg jpeg; do
+                    if [[ -f "${test_dir}mask_target.${ext}" ]]; then
+                        mask_target_file="${test_dir}mask_target.${ext}"
+                        break
+                    fi
+                done
+
+                if [[ -n "$source_file" && -n "$target_file" && -n "$mask_source_file" && -n "$mask_target_file" ]]; then
+                    # ==== VERSIONE STANDARD (senza monochrome transfer) ====
+                    echo "--- TEST-1: Seamless Cloning (standard) ---"
+                    if "$PYTHON" "$POISSON_SCRIPT" "$source_file" "$target_file" "$mask_target_file" \
+                        --mask-source "$mask_source_file" --mask-target "$mask_target_file" \
+                        --mode seamless_cloning --output "${out_dir}/result_cloning.png"; then
+                        echo "✓ Seamless Cloning (standard) completato"
+                        ((success++)) || true
+                    else
+                        echo "✗ Seamless Cloning (standard) FALLITO"
+                        ((fail++)) || true
+                    fi
+
+                    
+
+                    # ==== VERSIONE CON MONOCHROME TRANSFER ====
+                    echo "--- TEST-1: Seamless Cloning (monochrome transfer) ---"
+                    if "$PYTHON" "$POISSON_SCRIPT" "$source_file" "$target_file" "$mask_target_file" \
+                        --mask-source "$mask_source_file" --mask-target "$mask_target_file" \
+                        --mode seamless_cloning --monochrome-transfer --output "${out_dir}/result_cloning_mono.png"; then
+                        echo "✓ Seamless Cloning (monochrome transfer) completato"
+                        ((success++)) || true
+                    else
+                        echo "✗ Seamless Cloning (monochrome transfer) FALLITO"
+                        ((fail++)) || true
+                    fi
+
+                    
+                else
+                    echo "⚠ File mancanti per test-1 (serve source, target, mask_source e mask_target) - saltato."
+                fi
+            elif [[ "$test_name" == "test6" ]]; then
+                # ---------- CASO SPECIALE: test6 (più maschere target in sequenza) ----------
                 target_masks=()
                 source_masks=()
                 
@@ -313,7 +551,7 @@ for tech_dir in "$DATA_DIR"/*/; do
 
                 if [[ -n "$source_file" && -n "$target_file" && ${#target_masks[@]} -gt 0 ]]; then
                     # --- SEAMLESS CLONING SEQUENZIALE ---
-                    echo "--- TEST0: Seamless Cloning (sequential) ---"
+                    echo "--- TEST6: Seamless Cloning (sequential) ---"
                     current_target="$target_file"
                     success_cloning=true
                     

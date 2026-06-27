@@ -4,10 +4,10 @@ from PIL import Image
 import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 
-from utils import lab_to_rgb
+from utils import lab_to_rgb, build_gray_rgb
 from solver import PoissonInterpolationSolver
 from texture_flattening import TextureFlatteningSolver
-from local_illumination_change import LocalIlluminationChangeSolver, rgb2gray
+from local_illumination_change import LocalIlluminationChangeSolver
 from local_color_change import LocalColorChangeSolver
 from poisson_seamless_tiling import PoissonSeamlessTiling, tile_image
 
@@ -81,6 +81,8 @@ def main():
                         help='Percorso maschera sorgente (opzionale per allineamento)')
     parser.add_argument('--mask-target', default=None,
                         help='Percorso maschera target (opzionale per allineamento)')
+    parser.add_argument('--monochrome-transfer', action='store_true',
+                        help='Applica monochrome transfer: rende la source in scala di grigi (solo per seamless_cloning/mixed_gradient)')
     parser.add_argument('--output', default='poisson_result.png',
                         help='File output (immagine composita)')
 
@@ -170,6 +172,11 @@ def main():
             mask_source=args.mask_source,
             mask_target=args.mask_target
         )
+        
+        # Applica monochrome transfer se richiesto
+        if args.monochrome_transfer:
+            solver.source = build_gray_rgb(solver.source)
+        
         result = solver.solve(mixed=False)
 
         src_vis = solver.source if solver.color_space == 'RGB' else lab_to_rgb(solver.source)
@@ -216,6 +223,11 @@ def main():
             mask_source=args.mask_source,
             mask_target=args.mask_target
         )
+        
+        # Applica monochrome transfer se richiesto
+        if args.monochrome_transfer:
+            solver.source = build_gray_rgb(solver.source)
+        
         result = solver.solve(mixed=True)
 
         src_vis = solver.source if solver.color_space == 'RGB' else lab_to_rgb(solver.source)
