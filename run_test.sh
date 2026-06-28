@@ -444,8 +444,8 @@ for tech_dir in "$DATA_DIR"/*/; do
                 else
                     echo "⚠ File mancanti per test9 (serve source, target e almeno una coppia mask_sourceN/mask_targetN) - saltato."
                 fi
-            elif [[ "$test_name" == "test-1" ]]; then
-                # ---------- CASO SPECIALE: test-1 (texture transfer con mask_source e mask_target singole, con e senza monochrome transfer) ----------
+            elif [[ "$test_name" == "test10" ]]; then
+                # ---------- CASO SPECIALE: test10 (texture transfer con mask_source e mask_target singole, con e senza monochrome transfer) ----------
                 mask_source_file=""
                 mask_target_file=""
 
@@ -464,7 +464,7 @@ for tech_dir in "$DATA_DIR"/*/; do
 
                 if [[ -n "$source_file" && -n "$target_file" && -n "$mask_source_file" && -n "$mask_target_file" ]]; then
                     # ==== VERSIONE STANDARD (senza monochrome transfer) ====
-                    echo "--- TEST-1: Seamless Cloning (standard) ---"
+                    echo "--- TEST10: Seamless Cloning (standard) ---"
                     if "$PYTHON" "$POISSON_SCRIPT" "$source_file" "$target_file" "$mask_target_file" \
                         --mask-source "$mask_source_file" --mask-target "$mask_target_file" \
                         --mode seamless_cloning --output "${out_dir}/result_cloning.png"; then
@@ -478,7 +478,7 @@ for tech_dir in "$DATA_DIR"/*/; do
                     
 
                     # ==== VERSIONE CON MONOCHROME TRANSFER ====
-                    echo "--- TEST-1: Seamless Cloning (monochrome transfer) ---"
+                    echo "--- TEST10: Seamless Cloning (monochrome transfer) ---"
                     if "$PYTHON" "$POISSON_SCRIPT" "$source_file" "$target_file" "$mask_target_file" \
                         --mask-source "$mask_source_file" --mask-target "$mask_target_file" \
                         --mode seamless_cloning --monochrome-transfer --output "${out_dir}/result_cloning_mono.png"; then
@@ -491,7 +491,7 @@ for tech_dir in "$DATA_DIR"/*/; do
 
                     
                 else
-                    echo "⚠ File mancanti per test-1 (serve source, target, mask_source e mask_target) - saltato."
+                    echo "⚠ File mancanti per test10 (serve source, target, mask_source e mask_target) - saltato."
                 fi
             elif [[ "$test_name" == "test6" ]]; then
                 # ---------- CASO SPECIALE: test6 (più maschere target in sequenza) ----------
